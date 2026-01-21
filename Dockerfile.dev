@@ -1,0 +1,18 @@
+FROM continuumio/miniconda3:25.3.1-1
+
+RUN conda install conda-forge::uv \
+    bioconda::samtools==1.21 \ 
+    bioconda::bedtools==2.31.1 \ 
+    bioconda::ont-modkit==0.2.5 \ 
+    bioconda::minimap2==2.26
+
+COPY pyproject.toml .python-version uv.lock ./
+
+RUN uv sync
+
+# load and unpack chm13v2.0
+ADD https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz /tmp/chm13v2.fa.gz
+
+RUN mkdir /refs && gzip -d < /tmp/chm13v2.fa.gz > /refs/chm13v2.fa \
+    && rm /tmp/chm13v2.fa.gz
+
