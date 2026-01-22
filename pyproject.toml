@@ -8,4 +8,10 @@ dependencies = [
     "pathtype>=1.0.0",
     "rich>=14.2.0",
     "rich-argparse>=1.7.2",
+    "liblinear-multicore==2.49.0",
+    "joblib==1.5.2",
+    "numpy==2.2.6",
+    "pandas==2.3.2",
+    "scikit-learn==1.7.1",
+    "requests==2.32.5"
 ]

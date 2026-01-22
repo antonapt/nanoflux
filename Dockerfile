@@ -1,5 +1,10 @@
 FROM continuumio/miniconda3:25.3.1-1
 
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libomp-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN conda config --remove channels defaults && \
     conda config --add channels conda-forge && \
     conda config --add channels bioconda && \
@@ -8,6 +13,8 @@ RUN conda config --remove channels defaults && \
     bedtools==2.31.1 \ 
     ont-modkit==0.2.5 \ 
     minimap2==2.26
+
+WORKDIR /workspace
 
 COPY pyproject.toml .python-version uv.lock ./
 
@@ -18,4 +25,3 @@ ADD https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/an
 
 RUN mkdir /refs && gzip -d < /tmp/chm13v2.fa.gz > /refs/chm13v2.fa \
     && rm /tmp/chm13v2.fa.gz
-

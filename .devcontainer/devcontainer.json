@@ -1,0 +1,43 @@
+{
+    "name": "NanoFlux Dev",
+    "dockerFile": "../Dockerfile",
+    "context": "..",
+    "runArgs": [
+        "--platform=linux/amd64"
+    ],
+    "build": {
+        "args": {
+            "TARGETPLATFORM": "linux/amd64"
+        },
+        "options": [
+            "--platform=linux/amd64"
+        ]
+    },
+    "workspaceFolder": "/workspace",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+    "postCreateCommand": "uv sync",
+    "remoteEnv": {
+        "PATH": "/workspace/.venv/bin:/opt/conda/bin:${containerEnv:PATH}"
+    },
+    "customizations": {
+    "vscode": {
+        "extensions": [
+            "ms-python.python",
+            "ms-python.vscode-pylance",
+            "charliermarsh.ruff"
+        ],
+        "settings": {
+            "python.defaultInterpreterPath": "/workspace/.venv/bin/python",
+            "editor.defaultFormatter": "charliermarsh.ruff",
+            "editor.formatOnSave": true,
+            "editor.codeActionsOnSave": {
+                "source.organizeImports": "explicit",
+                "source.fixAll": "explicit"
+            },
+            // This tells VS Code to use the bundled Ruff binary 
+            // instead of looking for one in your uv environment
+            "ruff.importStrategy": "fromEnvironment" 
+        }
+    }
+}
+}

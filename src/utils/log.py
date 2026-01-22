@@ -3,7 +3,7 @@ import logging
 from rich.logging import RichHandler
 
 logger = logging.getLogger("nanoflux")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 # configure handler + formatter once
 handler = RichHandler(markup=True)
