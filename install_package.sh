@@ -19,11 +19,16 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate $ENV_NAME
 
 echo " -------- Installing Bioinformatics Tools (Bioconda) --------"
-conda install -y -c conda-forge uv
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    conda install -y -c bioconda samtools=1.21 bedtools=2.31.1 ont-modkit minimap2
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    conda install -y -c bioconda samtools=1.21 bedtools=2.31.1 ont-modkit=0.2.5 minimap2=2.26
+conda config --add channels conda-forge
+conda config --add channels bioconda
+conda install -y uv
+if [[ "$OSTYPE" == darwin* ]]; then
+    conda install -y samtools==1.21 bedtools==2.31.1 ont-modkit minimap2
+elif [[ "$OSTYPE" == linux-gnu* ]]; then
+    conda install -y samtools==1.21 bedtools==2.31.1 ont-modkit==0.2.5 minimap2==2.26
+else
+    echo "Error: Unsupported OS type ($OSTYPE). This script only supports macOS and Linux."
+    exit 1
 fi
 
 echo " -------- Install Python dependencies with Fallback for OpenMP --------"
