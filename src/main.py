@@ -32,9 +32,9 @@ def run():
     prepare_parser.add_argument(
         "-i",
         "--input",
-        type=pathtype.Path(exists=True, name_matches_re=r"\.bam$", readable=True),
+        type=pathtype.Path(exists=True, name_matches_re=r"\.[sb]am$", readable=True),
         required=True,
-        help="Path to input BAM file",
+        help="Path to input SAM/BAM file",
     )
     prepare_parser.add_argument(
         "-o",
@@ -47,7 +47,7 @@ def run():
         "--ref",
         type=pathtype.Path(exists=True, name_matches_re=r"\.fa$", readable=True),
         required=True,
-        help="Path to CHM13v2 reference genome",
+        help="Path to T2T CHM13v2.0 reference genome",
     )
 
     # optional args:
@@ -67,7 +67,7 @@ def run():
     prepare_parser.add_argument(
         "--skip-alignment",
         action="store_true",
-        help="Skip alignment if BAM is already aligned to CHM13v2",
+        help="Skip alignment if SAM/BAM is already aligned to T2T CHM13v2.0",
     )
     prepare_parser.add_argument(
         "--dry-run",
