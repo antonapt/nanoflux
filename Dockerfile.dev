@@ -1,10 +1,13 @@
 FROM continuumio/miniconda3:25.3.1-1
 
-RUN conda install conda-forge::uv \
-    bioconda::samtools==1.21 \ 
-    bioconda::bedtools==2.31.1 \ 
-    bioconda::ont-modkit==0.2.5 \ 
-    bioconda::minimap2==2.26
+RUN conda config --remove channels defaults && \
+    conda config --add channels conda-forge && \
+    conda config --add channels bioconda && \
+    conda install uv \
+    samtools==1.21 \ 
+    bedtools==2.31.1 \ 
+    ont-modkit==0.2.5 \ 
+    minimap2==2.26
 
 COPY pyproject.toml .python-version uv.lock ./
 
