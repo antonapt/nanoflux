@@ -1,39 +1,8 @@
-import shutil
-import tempfile
-from functools import partial, wraps
 from pathlib import Path
 from subprocess import PIPE, Popen, run
 
-from src.utils.filehandling import prepare_location
+from src.utils.filehandling import prepare_location, with_tmpfile
 from src.utils.log import logger
-
-
-# intercept output_path and redirect to tmpfile
-# if returncode == 0 move tmpfile to output_path, else raise exception
-def with_tmpfile(fun):
-    @wraps(fun)
-    def wrapper(**kwargs):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            orig_path = Path(kwargs.pop("output_path"))
-            tmp_path = Path(tmpdir) / orig_path.name
-            logger.debug(f"Intercepting {orig_path} and redirecting to {tmp_path}")
-
-            p = partial(fun, output_path=tmp_path)
-            returncode, stdout, stderr = p(**kwargs)
-
-            if returncode == 0:
-                logger.debug(stdout)
-                logger.debug(stderr)
-                logger.debug(f"Writing {tmp_path} to {orig_path}")
-                shutil.move(tmp_path, orig_path)
-            else:
-                if tmp_path.exists():
-                    tmp_path.unlink()
-                raise Exception(
-                    f"Errorcode: {returncode}\nStdout: {stdout}\nStderr: {stderr}"
-                )
-
-    return wrapper
 
 
 @with_tmpfile
