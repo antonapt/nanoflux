@@ -11,3 +11,8 @@ wheels/
 .venv
 
 src/tests/data/calls.bam
+src/data/models/*
+refs/*
+
+# macOS files
+.DS_Store
