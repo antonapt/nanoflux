@@ -19,58 +19,28 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate $ENV_NAME
 
 echo " -------- Installing Bioinformatics Tools (Bioconda) --------"
-conda config --add channels conda-forge
-conda config --add channels bioconda
-conda install -y uv
+conda install -y -c conda-forge -c bioconda uv
 if [[ "$OSTYPE" == darwin* ]]; then
-    conda install -y samtools==1.21 bedtools==2.31.1 ont-modkit minimap2
+    conda install -y -c conda-forge -c bioconda samtools==1.21 bedtools==2.31.1 ont-modkit minimap2
 elif [[ "$OSTYPE" == linux-gnu* ]]; then
-    conda install -y samtools==1.21 bedtools==2.31.1 ont-modkit==0.2.5 minimap2==2.26
+    conda install -y -c conda-forge -c bioconda samtools==1.21 bedtools==2.31.1 ont-modkit==0.2.5 minimap2==2.26
 else
     echo "Error: Unsupported OS type ($OSTYPE). This script only supports macOS and Linux."
     exit 1
 fi
 
-echo " -------- Install Python dependencies with Fallback for OpenMP --------"
+echo " -------- Install Python dependencies --------"
 if [ -f "pyproject.toml" ]; then
-    echo "Attempting to sync dependencies..."
-
+    echo "Syncing dependencies..."
     export UV_PYTHON=$(which python)
-
     if ! uv sync; then
-    echo "------------------------------------------------"
-    echo "Sync failed. This is likely due to liblinear-multicore on your system."
-    echo "Switching to standard liblinear for compatibility..."
-    echo "------------------------------------------------"
-
-python << 'EOF'
-import pathlib
-import shutil
-
-original = pathlib.Path('pyproject.toml')
-backup = pathlib.Path('pyproject.toml.bak')
-orig_lock = pathlib.Path('uv.lock')
-backup_lock = pathlib.Path('uv.lock.bak')
-
-if original.exists():
-    shutil.copy2(original, backup)
-
-if orig_lock.exists():
-    shutil.copy2(orig_lock, backup_lock)
-
-lines = original.read_text().splitlines(keepends=True)
-
-with open(original, 'w') as f:
-    for line in lines:
-        if 'liblinear-multicore' in line:
-            f.write('    "liblinear-official",\n')
-        else:
-            f.write(line)
-EOF
-    cat pyproject.toml
-    echo "Retrying sync with liblinear-official..."
-    uv sync
-fi
+        echo "Error: Failed to sync dependencies with uv!"
+        echo "Reverting environment setup..."
+        conda deactivate
+        conda remove -n $ENV_NAME --all -y
+        echo "Environment $ENV_NAME has been removed."
+        exit 1
+    fi
 else
     echo "Warning: pyproject.toml not found."
 fi

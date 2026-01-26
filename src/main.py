@@ -32,6 +32,13 @@ def run():
         action="store_true",
         help="Create output directory and parents",
     )
+    common_parser.add_argument(
+        "-t",
+        "--threads",
+        type=int,
+        default=4,
+        help="Number of threads to use in tool calls",
+    )
 
     subparsers = parser.add_subparsers(
         title="subcommands", dest="command", required=True, metavar="COMMAND"
@@ -61,13 +68,6 @@ def run():
 
     # optional args:
     prepare_parser.add_argument(
-        "-t",
-        "--threads",
-        type=int,
-        default=4,
-        help="Number of threads to use in tool calls",
-    )
-    prepare_parser.add_argument(
         "--skip-alignment",
         action="store_true",
         help="Skip alignment if SAM/BAM is already aligned to T2T CHM13v2.0",
@@ -92,13 +92,6 @@ def run():
         type=pathtype.Path(exists=True, name_matches_re=r"\.bed$", readable=True),
         required=True,
         help="Path to input bed file",
-    )
-    infer_parser.add_argument(
-        "-j",
-        "--n-jobs",
-        type=int,
-        default=-1,
-        help="Number of jobs to run in parallel",
     )
 
     infer_parser.set_defaults(func=infer)

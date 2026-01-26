@@ -11,9 +11,9 @@ from .linear_model import LiblinearWrapper
 
 
 class EnsembleWrapper:
-    def __init__(self, models_dir: Path | str, n_jobs: int = -1):
+    def __init__(self, models_dir: Path | str, n_threads: int = -1):
         self.models_dir = Path(models_dir)
-        self.n_jobs = n_jobs
+        self.n_threads = n_threads
         self.models: List[LiblinearWrapper] = []
         self.classes_: np.ndarray | None = None
         if not self.models_dir.exists():
@@ -41,7 +41,7 @@ class EnsembleWrapper:
 
         logger.info(f"Loading {len(model_files)} models...")
 
-        self.models = Parallel(n_jobs=self.n_jobs, backend="threading")(
+        self.models = Parallel(n_jobs=self.n_threads, backend="threading")(
             delayed(self._load_single_wrapper)(p) for p in model_files
         )
 
@@ -72,7 +72,7 @@ class EnsembleWrapper:
         """
         Predicts the average probabilities or logits across all models in the ensemble.
         """
-        results = Parallel(n_jobs=self.n_jobs, backend="threading")(
+        results = Parallel(n_jobs=self.n_threads, backend="threading")(
             delayed(self._run_single_prediction)(m, X, logits) for m in self.models
         )
         return np.mean(results, axis=0)

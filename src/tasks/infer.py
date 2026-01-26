@@ -5,6 +5,7 @@ import pandas as pd
 from src.model.ensemble_model import EnsembleWrapper
 from src.utils.data_utils import prepare_inference_data
 from src.utils.log import logger
+from src.utils.filehandling import prepare_location
 
 
 def load_features_list() -> list[str]:
@@ -31,15 +32,12 @@ def main(args):
     ensemble_models_root_dir = Path("src/data/models").resolve()
     ensemble_model = EnsembleWrapper(
         models_dir=ensemble_models_root_dir,
-        n_jobs=args.n_jobs,
+        n_threads=args.threads,
     )
     # Make predictions
     probas, preds = ensemble_model.predict(X)
     # Save results
-    if not output_dir.exists():
-        output_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created output directory at {output_dir}")
-
+    prepare_location(output_dir / "predicted_probabilities.csv", output_dir)
     probas.to_csv(output_dir / "predicted_probabilities.csv")
     preds.to_json(output_dir / "predicted_labels.json")
 
