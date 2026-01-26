@@ -31,11 +31,28 @@ conda activate nanoflux_env
 
 ### 1. 📁 Prepare BAM Files
 
-[TODO]
+Run the NanoFlux file preparation pipeline on a SAM/BAM file:
+
+```bash
+nanoflux prepare -i "$input_file" -o "$output_dir" --ref "$ref_path"
+```
+
+Additional flags and arguments:
+```bash
+-c/--create-dir: "create "$output_dir" if it does not exist"
+-t/--threads "$n_threads": "number of threads to use (default: 4)"
+--skip-alignment: "skip minimap2 alignment if SAM/BAM is already aligned to T2T CHM13v2.0"
+```
+
+This will:
+- align SAM/BAM with `minimap2` (optional)
+- sort, indexand convert to BAM with `samtools`
+- extract and and tabulate methylation information with `modkit`
+- annotate methylation calls with `bedtools`
 
 ### 2. 🤖 Infer with NanoFlux
 
-Run the NanoFlux inference pipeline on your `.bed` file (output from previous step):
+Run the NanoFlux inference pipeline on your `methylation.bed` file (output from previous step):
 
 ```bash
 nanoflux infer -i "$input_file" -o "$output_dir" -c

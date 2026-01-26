@@ -37,7 +37,7 @@ def run():
         "--threads",
         type=int,
         default=4,
-        help="Number of threads to use in tool calls",
+        help="Number of threads to use in tool calls and inference",
     )
 
     subparsers = parser.add_subparsers(
