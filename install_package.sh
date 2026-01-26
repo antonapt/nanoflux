@@ -31,10 +31,9 @@ fi
 
 echo " -------- Install Python dependencies --------"
 if [ -f "pyproject.toml" ]; then
-    echo "Syncing dependencies..."
-    export UV_PYTHON=$(which python)
-    if ! uv sync; then
-        echo "Error: Failed to sync dependencies with uv!"
+    echo "Installing package and dependencies into conda environment..."
+    if ! uv pip install -e .; then
+        echo "Error: Failed to install dependencies with uv!"
         echo "Reverting environment setup..."
         conda deactivate
         conda remove -n $ENV_NAME --all -y
@@ -57,7 +56,8 @@ fi
 
 echo " -------- Model Download --------"
 if [ -f "src/data/download_models.py" ]; then
-    uv run python -m src.data.download_models
+    # uv run python -m src.data.download_models
+    python -m src.data.download_models
 else
     echo "Warning: download_models.py not found at src/data/."
 fi

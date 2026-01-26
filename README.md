@@ -38,7 +38,7 @@ conda activate nanoflux_env
 Run the NanoFlux inference pipeline on your `.bed` file (output from previous step):
 
 ```bash
-uv run python -m src.main infer -i "$input_file" -o "$output_dir" -c
+nanoflux infer -i "$input_file" -o "$output_dir" -c
 ```
 
 The inference will:

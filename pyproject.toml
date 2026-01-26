@@ -15,3 +15,10 @@ dependencies = [
     "scikit-learn==1.7.1",
     "requests==2.32.5"
 ]
+
+[project.scripts]
+nanoflux = "src.main:run"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
