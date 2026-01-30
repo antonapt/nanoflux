@@ -135,6 +135,7 @@ def modkit_pileup(
     return 0, "", ""
 
 
+@with_tmpfile
 def bedtools_intersect(
     *,
     input_path: Path,
