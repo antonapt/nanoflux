@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from subprocess import PIPE, Popen, run
 
@@ -34,6 +35,7 @@ def minimap2_align(
         "-t",
         str(threads),
     ]
+    logger.info("Running [green bold]minimap2[/]")
     logger.debug(f"Running command: {' '.join(cmd_sam)} | {' '.join(cmd_mm2)}")
 
     if not dry_run:
@@ -66,6 +68,7 @@ def samtools_sort(
         str(threads),
         str(input_path),
     ]
+    logger.info("Running [green bold]samtools sort[/]")
     logger.debug(f"Running command: {' '.join(cmd)}")
 
     if not dry_run:
@@ -91,6 +94,7 @@ def samtools_index(
         str(threads),
         str(input_path),
     ]
+    logger.info("Running [green bold]samtools index[/]")
     logger.debug(f"Running command: {' '.join(cmd)}")
 
     if not dry_run:
@@ -122,6 +126,7 @@ def modkit_pileup(
         "--suppress-progress",  # prevent huge stdout
         # "--log-file" # TODO: add a path to this
     ]
+    logger.info("Running [green bold]modkit pileup[/]")
     logger.debug(f"Running command: {' '.join(cmd)}")
 
     if not dry_run:
@@ -147,6 +152,7 @@ def bedtools_intersect(
         "-wa",
         "-wb",
     ]
+    logger.info("Running [green bold]bedtools intersect[/]")
     logger.debug(f"Running command: {' '.join(cmd)} > {output_path}")
 
     if not dry_run:
@@ -157,6 +163,11 @@ def bedtools_intersect(
 
 
 def main(args):
+    if args.debug or args.dry_run:
+        logger.setLevel(logging.DEBUG)
+
+    logger.info("Running [blue bold]nanoflux prepare[/]")
+
     input_file = args.input.resolve()
     output_dir = args.output.resolve()
     reference = args.ref.resolve()
@@ -212,3 +223,6 @@ def main(args):
         anno_path=anno_file,
         dry_run=args.dry_run,
     )
+
+    logger.info("[blue bold]nanoflux prepare[/] has successfully run!")
+    logger.info(f"The intermediate file has been saved to: {methyl_file}")

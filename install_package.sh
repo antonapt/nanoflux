@@ -2,7 +2,7 @@
 
 set -e
 
-ENV_NAME="nanoflux_env"
+ENV_NAME="nanoflux"
 REF_DIR="./refs"
 
 echo "Starting setup for $ENV_NAME..."
@@ -56,7 +56,6 @@ fi
 
 echo " -------- Model Download --------"
 if [ -f "src/data/download_models.py" ]; then
-    # uv run python -m src.data.download_models
     python -m src.data.download_models
 else
     echo "Warning: download_models.py not found at src/data/."
