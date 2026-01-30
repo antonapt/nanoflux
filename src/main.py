@@ -62,14 +62,15 @@ def run():
         required=True,
         help="Path to input SAM/BAM file",
     )
+
+    # optional args:
     prepare_parser.add_argument(
         "--ref",
         type=pathtype.Path(exists=True, name_matches_re=r"\.fa$", readable=True),
-        required=True,
+        required=False,
+        default="refs/chm13v2.fa",
         help="Path to T2T CHM13v2.0 reference genome",
     )
-
-    # optional args:
     prepare_parser.add_argument(
         "--skip-alignment",
         action="store_true",
