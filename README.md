@@ -37,7 +37,7 @@ conda activate nanoflux
 We recommend you perform base calling with `dorado` and it's `dna_r10.4.1_e8.2_400bps_hac@v4.3.0` model or newer:
 
 ```bash
-dorado basecaller dna_r10.4.1_e8.2_400bps_hac@v4.3.0 "$pod_path" --modified-bases 5mCG_5hmCG > "$out_BAM"
+dorado basecaller dna_r10.4.1_e8.2_400bps_hac@v4.3.0 "$pod5_path" --modified-bases 5mCG_5hmCG > "$out_BAM"
 ```
 
 ### 2. 📁 Prepare BAM Files
