@@ -39,6 +39,9 @@ def run():
         default=4,
         help="Number of threads to use in tool calls and inference",
     )
+    common_parser.add_argument(
+        "-d", "--debug", action="store_true", help="Enable debug logging"
+    )
 
     subparsers = parser.add_subparsers(
         title="subcommands", dest="command", required=True, metavar="COMMAND"
@@ -46,7 +49,7 @@ def run():
 
     prepare_parser = subparsers.add_parser(
         "prepare",
-        help="Prepare a BAM file for nanoflux inference",
+        help="Prepare a SAM/BAM file for nanoflux inference",
         formatter_class=parser.formatter_class,
         parents=[common_parser],
     )

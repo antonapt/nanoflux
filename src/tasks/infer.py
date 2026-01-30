@@ -1,11 +1,12 @@
+import logging
 from pathlib import Path
 
 import pandas as pd
 
 from src.model.ensemble_model import EnsembleWrapper
 from src.utils.data_utils import prepare_inference_data
-from src.utils.log import logger
 from src.utils.filehandling import prepare_location
+from src.utils.log import logger
 
 
 def load_features_list() -> list[str]:
@@ -23,6 +24,9 @@ def load_features_list() -> list[str]:
 
 
 def main(args):
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+
     input_file = Path(args.input).resolve()
     output_dir = Path(args.output).resolve()
     # Load and prepare data
@@ -37,8 +41,10 @@ def main(args):
     # Make predictions
     probas, preds = ensemble_model.predict(X)
     # Save results
-    prepare_location(output_dir / "predicted_probabilities.csv", output_dir)
-    probas.to_csv(output_dir / "predicted_probabilities.csv")
+    prepare_location(output_dir / "predicted_probabilities.csv", args.create_dir)
+    probas.T.sort_values(by="mod", ascending=False).to_csv(
+        output_dir / "predicted_probabilities.csv"
+    )
     preds.to_json(output_dir / "predicted_labels.json")
 
     logger.info(f"Saved results to {output_dir}")
