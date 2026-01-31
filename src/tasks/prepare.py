@@ -1,4 +1,5 @@
 import logging
+from importlib.resources import files
 from pathlib import Path
 from subprocess import PIPE, Popen, run
 
@@ -173,7 +174,7 @@ def main(args):
     output_dir = args.output.resolve()
     reference = args.ref.resolve()
 
-    anno_file = Path("src/data/mapping_EPIC.bed").resolve()
+    anno_file = files("src.data") / "mapping_EPIC.bed"
 
     if not args.skip_alignment:
         output_file = output_dir / "aligned_to_CHM13v2.sam"
@@ -221,7 +222,7 @@ def main(args):
     bedtools_intersect(
         input_path=pileup_file,
         output_path=methyl_file,
-        anno_path=anno_file,
+        anno_path=anno_file,  # type: ignore
         dry_run=args.dry_run,
     )
 

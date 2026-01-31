@@ -12,7 +12,7 @@ wheels/
 
 src/tests/data/calls.bam
 src/data/models/*
-refs/*
+src/data/refs/*
 
 # macOS files
 .DS_Store

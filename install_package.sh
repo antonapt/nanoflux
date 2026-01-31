@@ -3,7 +3,7 @@
 set -e
 
 ENV_NAME="nanoflux"
-REF_DIR="./refs"
+REF_DIR="./src/data/refs"
 
 echo "Starting setup for $ENV_NAME..."
 

@@ -20,5 +20,18 @@ dependencies = [
 nanoflux = "src.main:run"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["src*"]
+where = ["src"]
+include = ["*"]
+
+[tool.setuptools.package-data]
+data = [
+    "*.csv",
+    "*.bed",
+    "models/*.model",
+    "models/*.onehot",
+    "models/*.features",
+    "refs/*.fa"]
+
+[build-system]
+requires = ["setuptools>=61.0", "setuptools_scm>=6.0", "wheel"]
+build-backend = "setuptools.build_meta"
