@@ -3,7 +3,7 @@
 set -e
 
 ENV_NAME="nanoflux"
-REF_DIR="./src/data/refs"
+REF_DIR="./data/refs"
 
 echo "Starting setup for $ENV_NAME..."
 
@@ -29,6 +29,22 @@ else
     exit 1
 fi
 
+echo " -------- Download Reference Genome --------"
+mkdir -p "$REF_DIR"
+if [ ! -f "$REF_DIR/chm13v2.fa" ]; then
+    echo "Downloading CHM13 reference genome..."
+    curl -L https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz -o "$REF_DIR/chm13v2.fa.gz"
+    gunzip -c "$REF_DIR/chm13v2.fa.gz" > "$REF_DIR/chm13v2.fa"
+    rm "$REF_DIR/chm13v2.fa.gz"
+fi
+
+echo " -------- Model Download --------"
+if [ -f "data/download_models.py" ]; then
+    uv run --no-project --with requests data/download_models.py
+else
+    echo "Warning: download_models.py not found at data/."
+fi
+
 echo " -------- Install Python dependencies --------"
 if [ -f "pyproject.toml" ]; then
     echo "Installing package and dependencies into conda environment..."
@@ -42,23 +58,6 @@ if [ -f "pyproject.toml" ]; then
     fi
 else
     echo "Warning: pyproject.toml not found."
-fi
-
-
-echo " -------- Download Reference Genome --------"
-mkdir -p "$REF_DIR"
-if [ ! -f "$REF_DIR/chm13v2.fa" ]; then
-    echo "Downloading CHM13 reference genome..."
-    curl -L https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz -o "$REF_DIR/chm13v2.fa.gz"
-    gunzip -c "$REF_DIR/chm13v2.fa.gz" > "$REF_DIR/chm13v2.fa"
-    rm "$REF_DIR/chm13v2.fa.gz"
-fi
-
-echo " -------- Model Download --------"
-if [ -f "src/data/download_models.py" ]; then
-    python -m src.data.download_models
-else
-    echo "Warning: download_models.py not found at src/data/."
 fi
 
 echo "------------------------------------------------"

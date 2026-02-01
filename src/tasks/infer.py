@@ -14,12 +14,12 @@ def load_features_list() -> list[str]:
     """Load the list of features to be used for inference.
     TODO: Not sure yet if this is the correct place to put this function.
     """
-    lsf_remaining_feats = Path("src/data/features_min_sds_above_25.csv").resolve()
-    if not lsf_remaining_feats.exists():
+    lsf_remaining_feats = files("data.misc") / "features_min_sds_above_25.csv"
+    if not lsf_remaining_feats.exists():  # type: ignore
         raise FileNotFoundError(
             f"Features list file not found at {lsf_remaining_feats}"
         )
-    lsf_remaining_feats = pd.read_csv(lsf_remaining_feats)
+    lsf_remaining_feats = pd.read_csv(lsf_remaining_feats)  # type: ignore
     lsf_remaining_feats = lsf_remaining_feats.iloc[:, 0].tolist()
     return lsf_remaining_feats
 
@@ -34,7 +34,7 @@ def main(args):
     lsf_remaining_feats = load_features_list()
     X = prepare_inference_data(input_file, lsf_remaining_feats)
     # Load ensemble model
-    ensemble_models_root_dir = files("src.data") / "models"
+    ensemble_models_root_dir = files("data") / "models"
     ensemble_model = EnsembleWrapper(
         models_dir=ensemble_models_root_dir,  # type: ignore
         n_threads=args.threads,

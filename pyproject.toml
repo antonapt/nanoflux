@@ -13,15 +13,14 @@ dependencies = [
     "numpy==2.2.6",
     "pandas==2.3.2",
     "scikit-learn==1.7.1",
-    "requests==2.32.5"
 ]
 
 [project.scripts]
 nanoflux = "src.main:run"
 
 [tool.setuptools.packages.find]
-where = ["src"]
-include = ["*"]
+where = ["."]
+include = ["src*", "data*"]
 
 [tool.setuptools.package-data]
 data = [

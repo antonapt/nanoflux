@@ -3,8 +3,6 @@ from xml.etree import ElementTree
 
 import requests
 
-from src.utils.log import logger
-
 share_token = "pmammFQ8RBkSxzR"
 base_url = "https://tubcloud.tu-berlin.de"
 dav_url = f"{base_url}/public.php/webdav/"
@@ -21,7 +19,7 @@ def download():
     )
 
     if response.status_code != 207:
-        logger.error(f"Error: {response.status_code}")
+        print(f"Error: {response.status_code}")
         return
 
     tree = ElementTree.fromstring(response.content)
@@ -32,19 +30,19 @@ def download():
 
         # If it ends in a slash, it's a folder. We skip folders for downloading.
         if href.endswith("/"):
-            logger.info(f"Found folder: {href}")
+            print(f"Found folder: {href}")
             continue
 
         file_name = href.split("/")[-1]
         dest_path = target_dir / file_name
 
         if dest_path.exists():
-            logger.info(f"Skipping existing file: {dest_path}")
+            print(f"Skipping existing file: {dest_path}")
             continue
 
         download_url = f"{base_url}{href}"
 
-        logger.info(f"Downloading: {file_name}...")
+        print(f"Downloading: {file_name}...")
         r = requests.get(download_url, auth=(share_token, password))
         with open(dest_path, "wb") as f:
             f.write(r.content)
