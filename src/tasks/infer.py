@@ -14,7 +14,7 @@ def load_features_list() -> list[str]:
     """Load the list of features to be used for inference.
     TODO: Not sure yet if this is the correct place to put this function.
     """
-    lsf_remaining_feats = files("data.misc") / "features_min_sds_above_25.csv"
+    lsf_remaining_feats = files("data") / "misc" / "features_min_sds_above_25.csv"
     if not lsf_remaining_feats.exists():  # type: ignore
         raise FileNotFoundError(
             f"Features list file not found at {lsf_remaining_feats}"

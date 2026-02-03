@@ -69,7 +69,7 @@ def run():
         "--ref",
         type=pathtype.Path(exists=True, name_matches_re=r"\.fa$", readable=True),
         required=False,
-        default=(files("data.refs") / "chm13v2.fa"),
+        default=files("data") / "refs" / "chm13v2.fa",
         help="Path to T2T CHM13v2.0 reference genome",
     )
     prepare_parser.add_argument(
