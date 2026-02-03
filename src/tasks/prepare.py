@@ -174,7 +174,7 @@ def main(args):
     output_dir = args.output.resolve()
     reference = args.ref.resolve()
 
-    anno_file = files("data") / "misc" / "mapping_EPIC.bed"
+    anno_file = files("data") / "features" / "mapping_EPIC.bed"
 
     if not args.skip_alignment:
         output_file = output_dir / "aligned_to_CHM13v2.sam"

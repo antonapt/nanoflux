@@ -24,8 +24,8 @@ include = ["src*", "data*"]
 
 [tool.setuptools.package-data]
 data = [
-    "misc/*.csv",
-    "misc/*.bed",
+    "features/*.csv",
+    "features/*.bed",
     "models/*.model",
     "models/*.onehot",
     "models/*.features",
