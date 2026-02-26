@@ -13,7 +13,6 @@ dependencies = [
     "numpy==2.2.6",
     "pandas==2.3.2",
     "scikit-learn==1.7.1",
-    "requests==2.32.5"
 ]
 
 [project.scripts]
@@ -21,4 +20,17 @@ nanoflux = "src.main:run"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*"]
+include = ["src*", "data*"]
+
+[tool.setuptools.package-data]
+data = [
+    "features/*.csv",
+    "features/*.bed",
+    "models/*.model",
+    "models/*.onehot",
+    "models/*.features",
+    "refs/*.fa"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
