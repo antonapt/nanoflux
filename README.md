@@ -1,6 +1,7 @@
 # 🧬 NanoFlux
 
-DNA methylation ensemble classifier for Oxford Nanopore sequencing data.
+DNA methylation ensemble classifier for Oxford Nanopore sequencing data. This python package accompanies the work:
+*"Advancing methylation-based brain tumor classification through Nanopore sequencing data of cerebrospinal fluid-derived cell-free DNA"*  by Julia Freese, Anton Appelt, Laure Ciernik et al.
 
 ## 📋 Requirements
 
@@ -84,3 +85,15 @@ Run tests to verify dependencies:
 ```bash
 uv run pytest
 ```
+
+## 📫 Contact 
+If you have any questions, comments, or contribution ideas, don't hesitate to reach out.
+- Anton Appelt, Appelt [at] kinderkrebs-forschung.de
+- Laure Ciernik, ciernik [at] tu-berlin.de
+- Michael Bockmayr, m.bockmayr [at] uke.de
+ 
+  
+
+
+> [!IMPORTANT]
+> License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
