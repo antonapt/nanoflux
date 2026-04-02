@@ -47,19 +47,19 @@ Nanoflux will handle both SAM and BAM files obtained from base calling. As these
 Run the NanoFlux file preparation pipeline on a SAM/BAM file:
 
 ```bash
-nanoflux prepare -i "$input_file" -o "$output_dir" 
+nanoflux prepare -i "$input_file" -o "$output_directory" 
 ```
 
 Additional flags and arguments:
 ```bash
--c/--create-dir: "create "$output_dir" if it does not exist"
+-c/--create-dir: "create "$output_directory" if it does not exist"
 -t/--threads "$n_threads": "number of threads to use (default: 4)"
 --skip-alignment: "skip minimap2 alignment if SAM/BAM is already aligned to T2T CHM13v2.0"
 ```
 
 This will:
 - align SAM/BAM with `minimap2` (optional)
-- sort, indexand convert to BAM with `samtools`
+- sort, index and convert to BAM with `samtools`
 - extract and and tabulate methylation information with `modkit`
 - annotate methylation calls with `bedtools`
 
@@ -68,13 +68,13 @@ This will:
 Run the NanoFlux inference pipeline on your `methylation.bed` file (output from previous step):
 
 ```bash
-nanoflux infer -i "$input_file" -o "$output_dir" -c
+nanoflux infer -i "$input_file" -o "$output_directory" -c
 ```
 
 The inference will:
 - Extract methylation features from the prepared `.bed` file (`input_file`)
 - Apply the ensemble classifier
-- Output predictions and probability scores to the specified `output_dir`
+- Output predictions and probability scores to the specified `output_directory`
 - The `-c` flag indicates that output directories will be created if they do not exist
 
 ## 🧪 Development
