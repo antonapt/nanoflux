@@ -96,4 +96,5 @@ If you have any questions, comments, or contribution ideas, don't hesitate to re
 
 
 > [!IMPORTANT]
-> License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+> License: PolyForm Noncommercial License 1.0.0
+> <https://polyformproject.org/licenses/noncommercial/1.0.0>
