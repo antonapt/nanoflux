@@ -82,6 +82,12 @@ def run():
         action="store_true",
         help="Perform a dry-run without actually processing or writing files",
     )
+    prepare_parser.add_argument(
+        "--read-filter-list",
+        type=str,
+        default=None,
+        help="Path to a list of read names to keep (one read name per line). If not provided, all reads will be kept.",
+    )
 
     prepare_parser.set_defaults(func=prepare)
 
