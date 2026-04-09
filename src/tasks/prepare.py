@@ -82,23 +82,22 @@ def samtools_sort(
 
 
 def get_readnames_from_feather(
-    feather_path: Path, non_tumor_score_threshold: float, min_covered_cpgs: int
+    feather_path: Path,
+    non_tumor_score_threshold: float,
+    min_covered_cpgs: int,
+    read_name_col: str = "read_name",
+    score_col: str = "nontumor_score_sum",
+    cpg_col: str = "covered_cpgs",
 ) -> pd.Series:
     """Extracts read names from a feather file based on filtering criteria for non-tumor score and covered CpGs."""
-    if non_tumor_score_threshold is None or min_covered_cpgs is None:
-        raise ValueError(
-            "--read-filter-feather requires both --non-tumor-score-threshold and --min-covered-cpgs."
-        )
     feather_path = Path(feather_path).resolve()
-
     logger.info(f"Loading read filter feather: {feather_path}")
     df = pd.read_feather(feather_path)
-    mask_keep = (df["covered_cpgs"] < min_covered_cpgs) | (
-        df["nontumor_score_sum"] < non_tumor_score_threshold
-    )
-    read_names = df.loc[mask_keep, "read_name"]
+    mask_keep = (df[cpg_col] < min_covered_cpgs) | (df[score_col] < non_tumor_score_threshold)
+    read_names = df.loc[mask_keep, read_name_col]
     logger.info(
-        f"Keeping {len(read_names)} / {len(df)} reads after feather-based filtering"
+        f"Keeping {len(read_names)} / {len(df)} reads after feather-based filtering "
+        f"('{score_col}' < {non_tumor_score_threshold} OR '{cpg_col}' < {min_covered_cpgs})"
     )
     return read_names
 
@@ -289,10 +288,14 @@ def main(args):
         input_file = filtered_bam
 
     elif args.read_filter_feather:
+        read_name_col, score_col, cpg_col = args.feather_cols
         read_names = get_readnames_from_feather(
             feather_path=Path(args.read_filter_feather).resolve(),
             non_tumor_score_threshold=args.non_tumor_score_threshold,
             min_covered_cpgs=args.min_covered_cpgs,
+            read_name_col=read_name_col,
+            score_col=score_col,
+            cpg_col=cpg_col,
         )
         filtered_bam = output_dir / "aligned_to_CHM13v2_and_filtered_reads.bam"
         prepare_location(filtered_bam, args.create_dir)

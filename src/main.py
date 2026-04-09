@@ -111,6 +111,13 @@ def run():
         default=None,
         help="Minimum number of covered CpGs for a read to be considered long enough. Used with --read-filter-feather.",
     )
+    prepare_parser.add_argument(
+        "--feather-cols",
+        nargs=3,
+        metavar=("READ_NAME_COL", "SCORE_COL", "CPG_COL"),
+        default=["read_name", "nontumor_score_sum", "covered_cpgs"],
+        help="Column names in the feather file for: read name, score, CpG coverage (default: read_name nontumor_score_sum covered_cpgs). Used with --read-filter-feather.",
+    )
 
     prepare_parser.set_defaults(func=prepare)
 
