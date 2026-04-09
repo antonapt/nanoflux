@@ -88,6 +88,29 @@ def run():
         default=None,
         help="Path to a list of read names to keep (one read name per line). If not provided, all reads will be kept.",
     )
+    prepare_parser.add_argument(
+        "--read-filter-feather",
+        type=pathtype.Path(exists=True, readable=True),
+        default=None,
+        help=(
+            "Path to a feather file with columns 'read_name', 'nontumor_score_sum', 'covered_cpgs'. "
+            "Reads are kept if they do NOT meet both quality thresholds "
+            "(i.e., covered_cpgs < --min-covered-cpgs OR nontumor_score_sum < --non-tumor-score-threshold). "
+            "Requires --non-tumor-score-threshold and --min-covered-cpgs."
+        ),
+    )
+    prepare_parser.add_argument(
+        "--non-tumor-score-threshold",
+        type=float,
+        default=None,
+        help="Minimum nontumor_score_sum for a read to be considered high-confidence non-tumor. Used with --read-filter-feather.",
+    )
+    prepare_parser.add_argument(
+        "--min-covered-cpgs",
+        type=int,
+        default=None,
+        help="Minimum number of covered CpGs for a read to be considered long enough. Used with --read-filter-feather.",
+    )
 
     prepare_parser.set_defaults(func=prepare)
 

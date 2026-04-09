@@ -1,8 +1,10 @@
-import json
 import logging
+import tempfile
 from importlib.resources import files
 from pathlib import Path
 from subprocess import PIPE, Popen, run
+
+import pandas as pd
 
 from src.utils.filehandling import prepare_location, with_tmpfile
 from src.utils.log import logger
@@ -78,6 +80,53 @@ def samtools_sort(
         return proc.returncode, proc.stdout, proc.stderr
     return 0, "", ""
 
+
+def get_readnames_from_feather(
+    feather_path: Path, non_tumor_score_threshold: float, min_covered_cpgs: int
+) -> pd.Series:
+    """Extracts read names from a feather file based on filtering criteria for non-tumor score and covered CpGs."""
+    if non_tumor_score_threshold is None or min_covered_cpgs is None:
+        raise ValueError(
+            "--read-filter-feather requires both --non-tumor-score-threshold and --min-covered-cpgs."
+        )
+    feather_path = Path(feather_path).resolve()
+
+    logger.info(f"Loading read filter feather: {feather_path}")
+    df = pd.read_feather(feather_path)
+    mask_keep = (df["covered_cpgs"] < min_covered_cpgs) | (
+        df["nontumor_score_sum"] < non_tumor_score_threshold
+    )
+    read_names = df.loc[mask_keep, "read_name"]
+    logger.info(
+        f"Keeping {len(read_names)} / {len(df)} reads after feather-based filtering"
+    )
+    return read_names
+
+
+def samtools_filter_ids_from_names(
+    *,
+    read_names,
+    input_path: Path,
+    output_path: Path,
+    threads: int,
+    dry_run: bool = False,
+) -> tuple[int, str, str]:
+    """Filters a SAM/BAM file using an iterable of read names, via a temporary file."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+        tmp.write("\n".join(read_names))
+    try:
+        return samtools_filter_ids(
+            input_path=input_path,
+            output_path=output_path,
+            read_list=tmp_path,
+            threads=threads,
+            dry_run=dry_run,
+        )
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
 @with_tmpfile
 def samtools_filter_ids(
     *,
@@ -89,15 +138,23 @@ def samtools_filter_ids(
 ) -> tuple[int, str, str]:
     """Filters a SAM/BAM file using a list of read IDs."""
     if not read_list.exists() or read_list.stat().st_size == 0:
-        logger.error(f"Read filter list {read_list} does not exist or is empty. Skipping filtering step.")
-        raise FileNotFoundError(f"Read filter list {read_list} does not exist or is empty.")
-    
+        logger.error(
+            f"Read filter list {read_list} does not exist or is empty. Skipping filtering step."
+        )
+        raise FileNotFoundError(
+            f"Read filter list {read_list} does not exist or is empty."
+        )
+
     cmd = [
-        "samtools", "view",
-        "-h",                 
-        "-N", str(read_list),
-        "-@", str(threads),
-        "-o", str(output_path),
+        "samtools",
+        "view",
+        "-h",
+        "-N",
+        str(read_list),
+        "-@",
+        str(threads),
+        "-o",
+        str(output_path),
         str(input_path),
     ]
     logger.info("Running [green bold]samtools filter reads[/]")
@@ -106,6 +163,7 @@ def samtools_filter_ids(
         proc = run(cmd, capture_output=True, text=True)
         return proc.returncode, proc.stdout, proc.stderr
     return 0, "", ""
+
 
 @with_tmpfile
 def samtools_index(
@@ -216,7 +274,7 @@ def main(args):
             dry_run=args.dry_run,
         )
         input_file = output_file
-    
+
     if args.read_filter_list:
         filter_list = Path(args.read_filter_list).resolve()
         filtered_bam = output_dir / "aligned_to_CHM13v2_and_filtered_reads.bam"
@@ -228,7 +286,24 @@ def main(args):
             threads=args.threads,
             dry_run=args.dry_run,
         )
-        input_file = filtered_bam 
+        input_file = filtered_bam
+
+    elif args.read_filter_feather:
+        read_names = get_readnames_from_feather(
+            feather_path=Path(args.read_filter_feather).resolve(),
+            non_tumor_score_threshold=args.non_tumor_score_threshold,
+            min_covered_cpgs=args.min_covered_cpgs,
+        )
+        filtered_bam = output_dir / "aligned_to_CHM13v2_and_filtered_reads.bam"
+        prepare_location(filtered_bam, args.create_dir)
+        samtools_filter_ids_from_names(
+            input_path=input_file,
+            output_path=filtered_bam,
+            read_names=read_names,
+            threads=args.threads,
+            dry_run=args.dry_run,
+        )
+        input_file = filtered_bam
 
     output_file = output_dir / "aligned_to_CHM13v2.bam"
     prepare_location(output_file, args.create_dir)
