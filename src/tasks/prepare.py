@@ -262,89 +262,87 @@ def main(args):
 
     anno_file = files("data") / "features" / "mapping_EPIC.bed"
 
-    if not args.skip_alignment:
-        output_file = output_dir / "aligned_to_CHM13v2.sam"
-        prepare_location(output_file, args.create_dir)
-        minimap2_align(
+    methyl_file = output_dir / "methylation.bed"
+    prepare_location(methyl_file, args.create_dir)
+
+    with tempfile.TemporaryDirectory(prefix="nanoflux_prepare_") as tmpdir:
+        work_dir = Path(tmpdir)
+
+        if not args.skip_alignment:
+            output_file = work_dir / "aligned_to_CHM13v2.sam"
+            minimap2_align(
+                input_path=input_file,
+                output_path=output_file,
+                reference=reference,
+                threads=args.threads,
+                dry_run=args.dry_run,
+            )
+            input_file = output_file
+
+        if args.read_filter_list:
+            filter_list = Path(args.read_filter_list).resolve()
+            filtered_bam = work_dir / "aligned_to_CHM13v2_and_filtered_reads.bam"
+            samtools_filter_ids(
+                input_path=input_file,
+                output_path=filtered_bam,
+                read_list=filter_list,
+                threads=args.threads,
+                dry_run=args.dry_run,
+            )
+            input_file = filtered_bam
+
+        elif args.read_filter_feather:
+            read_name_col, score_col, cpg_col = args.feather_cols
+            read_names = get_readnames_from_feather(
+                feather_path=Path(args.read_filter_feather).resolve(),
+                non_tumor_score_threshold=args.non_tumor_score_threshold,
+                min_covered_cpgs=args.min_covered_cpgs,
+                read_name_col=read_name_col,
+                score_col=score_col,
+                cpg_col=cpg_col,
+            )
+            filtered_bam = work_dir / "aligned_to_CHM13v2_and_filtered_reads.bam"
+            samtools_filter_ids_from_names(
+                input_path=input_file,
+                output_path=filtered_bam,
+                read_names=read_names,
+                threads=args.threads,
+                dry_run=args.dry_run,
+            )
+            input_file = filtered_bam
+
+        output_file = work_dir / "aligned_to_CHM13v2.bam"
+        samtools_sort(
             input_path=input_file,
             output_path=output_file,
-            reference=reference,
             threads=args.threads,
             dry_run=args.dry_run,
         )
         input_file = output_file
 
-    if args.read_filter_list:
-        filter_list = Path(args.read_filter_list).resolve()
-        filtered_bam = output_dir / "aligned_to_CHM13v2_and_filtered_reads.bam"
-        prepare_location(filtered_bam, args.create_dir)
-        samtools_filter_ids(
+        output_file = work_dir / "aligned_to_CHM13v2.bam.bai"
+        samtools_index(
             input_path=input_file,
-            output_path=filtered_bam,
-            read_list=filter_list,
+            output_path=output_file,
             threads=args.threads,
             dry_run=args.dry_run,
         )
-        input_file = filtered_bam
 
-    elif args.read_filter_feather:
-        read_name_col, score_col, cpg_col = args.feather_cols
-        read_names = get_readnames_from_feather(
-            feather_path=Path(args.read_filter_feather).resolve(),
-            non_tumor_score_threshold=args.non_tumor_score_threshold,
-            min_covered_cpgs=args.min_covered_cpgs,
-            read_name_col=read_name_col,
-            score_col=score_col,
-            cpg_col=cpg_col,
-        )
-        filtered_bam = output_dir / "aligned_to_CHM13v2_and_filtered_reads.bam"
-        prepare_location(filtered_bam, args.create_dir)
-        samtools_filter_ids_from_names(
+        pileup_file = work_dir / "pileup.bed"
+        modkit_pileup(
             input_path=input_file,
-            output_path=filtered_bam,
-            read_names=read_names,
+            output_path=pileup_file,
+            reference=reference,
             threads=args.threads,
             dry_run=args.dry_run,
         )
-        input_file = filtered_bam
 
-    output_file = output_dir / "aligned_to_CHM13v2.bam"
-    prepare_location(output_file, args.create_dir)
-    samtools_sort(
-        input_path=input_file,
-        output_path=output_file,
-        threads=args.threads,
-        dry_run=args.dry_run,
-    )
-    input_file = output_file
-
-    output_file = output_dir / "aligned_to_CHM13v2.bam.bai"
-    prepare_location(output_file, args.create_dir)
-    samtools_index(
-        input_path=input_file,
-        output_path=output_file,
-        threads=args.threads,
-        dry_run=args.dry_run,
-    )
-
-    pileup_file = output_dir / "pileup.bed"
-    prepare_location(pileup_file, args.create_dir)
-    modkit_pileup(
-        input_path=input_file,
-        output_path=pileup_file,
-        reference=reference,
-        threads=args.threads,
-        dry_run=args.dry_run,
-    )
-
-    methyl_file = output_dir / "methylation.bed"
-    prepare_location(methyl_file, args.create_dir)
-    bedtools_intersect(
-        input_path=pileup_file,
-        output_path=methyl_file,
-        anno_path=anno_file,  # type: ignore
-        dry_run=args.dry_run,
-    )
+        bedtools_intersect(
+            input_path=pileup_file,
+            output_path=methyl_file,
+            anno_path=anno_file,  # type: ignore
+            dry_run=args.dry_run,
+        )
 
     logger.info("[blue bold]nanoflux prepare[/] has successfully run!")
     logger.info(f"The intermediate file has been saved to: {methyl_file}")
