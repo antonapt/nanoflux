@@ -95,21 +95,27 @@ def run():
         help=(
             "Path to a feather file with columns 'read_name', 'nontumor_score_sum', 'covered_cpgs'. "
             "Reads are kept if they do NOT meet both quality thresholds "
-            "(i.e., covered_cpgs < --min-covered-cpgs OR nontumor_score_sum < --non-tumor-score-threshold). "
-            "Requires --non-tumor-score-threshold and --min-covered-cpgs."
+            "(i.e., covered_cpgs < --score-filter-min-cpgs OR nontumor_score_sum < --non-tumor-score-threshold). "
+            "Requires --non-tumor-score-threshold and --score-filter-min-cpgs."
         ),
+    )
+    prepare_parser.add_argument(
+        "--short-read-min-covered-cpgs",
+        type=int,
+        default=None,
+        help="Minimum number of covered CpGs for a read not to be filtered out. Used with --read-filter-feather.",
     )
     prepare_parser.add_argument(
         "--non-tumor-score-threshold",
         type=float,
         default=None,
-        help="Minimum nontumor_score_sum for a read to be considered high-confidence non-tumor. Used with --read-filter-feather.",
+        help="Minimum non-tumor score for a read to be considered high-confidence non-tumor. Used with --read-filter-feather.",
     )
     prepare_parser.add_argument(
-        "--min-covered-cpgs",
+        "--score-filter-min-cpgs",
         type=int,
         default=None,
-        help="Minimum number of covered CpGs for a read to be considered long enough. Used with --read-filter-feather.",
+        help="Minimum number of covered CpGs for a read to be considered long enough to be assessed for non-tumor status. Used with --read-filter-feather.",
     )
     prepare_parser.add_argument(
         "--feather-cols",

@@ -83,8 +83,9 @@ def samtools_sort(
 
 def get_readnames_from_feather(
     feather_path: Path,
-    non_tumor_score_threshold: float,
-    min_covered_cpgs: int,
+    short_read_min_covered_cpgs: int | None = None,
+    non_tumor_score_threshold: float | None = None,
+    score_filter_min_cpgs: int | None = None,
     read_name_col: str = "read_name",
     score_col: str = "nontumor_score_sum",
     cpg_col: str = "covered_cpgs",
@@ -93,11 +94,21 @@ def get_readnames_from_feather(
     feather_path = Path(feather_path).resolve()
     logger.info(f"Loading read filter feather: {feather_path}")
     df = pd.read_feather(feather_path)
-    mask_keep = (df[cpg_col] < min_covered_cpgs) | (df[score_col] < non_tumor_score_threshold)
-    read_names = df.loc[mask_keep, read_name_col]
+    nr_reads_orig = len(df)
+    # Filter read if they do not cover enough CPGs OR if they are long enough but have a high non-tumor score (i.e., likely non-tumor)
+    if short_read_min_covered_cpgs is not None:
+        mask_keep = (df[cpg_col] >= short_read_min_covered_cpgs)
+        df = df.loc[mask_keep, :]
+
+    if score_filter_min_cpgs is not None and non_tumor_score_threshold is not None:
+        likely_tumor_reads = (df[cpg_col] < score_filter_min_cpgs) | (
+            df[score_col] < non_tumor_score_threshold
+        )
+        df = df.loc[likely_tumor_reads, :]
+    read_names = df.loc[:, read_name_col]
     logger.info(
-        f"Keeping {len(read_names)} / {len(df)} reads after feather-based filtering "
-        f"('{score_col}' < {non_tumor_score_threshold} OR '{cpg_col}' < {min_covered_cpgs})"
+        f"Keeping {len(read_names)} / {nr_reads_orig} reads after feather-based filtering "
+        f"('{cpg_col}' >= {short_read_min_covered_cpgs}) AND ('{score_col}' < {non_tumor_score_threshold} OR '{cpg_col}' < {score_filter_min_cpgs})"
     )
     return read_names
 
@@ -295,8 +306,9 @@ def main(args):
             read_name_col, score_col, cpg_col = args.feather_cols
             read_names = get_readnames_from_feather(
                 feather_path=Path(args.read_filter_feather).resolve(),
+                short_read_min_covered_cpgs=args.short_read_min_covered_cpgs,
                 non_tumor_score_threshold=args.non_tumor_score_threshold,
-                min_covered_cpgs=args.min_covered_cpgs,
+                score_filter_min_cpgs=args.score_filter_min_cpgs,
                 read_name_col=read_name_col,
                 score_col=score_col,
                 cpg_col=cpg_col,
