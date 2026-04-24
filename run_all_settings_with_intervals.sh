@@ -44,19 +44,18 @@ all_samples=(
     N2025-3850
 )
 all_quantiles=( 0.05 0.1 0.2 0.4 0.7 0.8 0.975 )
-all_min_cpg_filters=( 1 2 5 10 20 )
 all_metrics=('nontumor_score_mean' 'nontumor_score_sum')
 
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUNNER="$SCRIPT_DIR/run_prepare_n_infer_one_setting.sh"
+RUNNER="$SCRIPT_DIR/run_prepare_n_infer_with_intervals_one_setting.sh"
 
 if [[ ! -x "$RUNNER" ]]; then
     echo "Error: runner script is missing or not executable: $RUNNER" >&2
     exit 1
 fi
 
-# Tune parallelism with MAX_JOBS env var, e.g. MAX_JOBS=6 ./run_all_settings.sh
+# Tune parallelism with MAX_JOBS env var, e.g. MAX_JOBS=6 ./run_all_settings_with_intervals.sh
 MAX_JOBS=6
 MAX_JOBS="${MAX_JOBS:-$(nproc)}"
 if ! [[ "$MAX_JOBS" =~ ^[0-9]+$ ]] || [[ "$MAX_JOBS" -lt 1 ]]; then
@@ -73,41 +72,35 @@ mkdir -p "$LOG_DIR" "$STATUS_DIR"
 export LOG_DIR STATUS_DIR
 echo "[INFO] Writing per-job logs to: $LOG_DIR"
 
-job_count=$(( ${#all_samples[@]} * ${#all_quantiles[@]} * ${#all_min_cpg_filters[@]} * ${#all_metrics[@]} ))
+job_count=$(( ${#all_samples[@]} * ${#all_quantiles[@]} * ${#all_metrics[@]} ))
 
 for sample_id in "${all_samples[@]}"; do
     for quantile in "${all_quantiles[@]}"; do
-        for min_cpg_filter in "${all_min_cpg_filters[@]}"; do
-            for metric in "${all_metrics[@]}"; do
-                printf '%s\t%s\t%s\t%s\n' "$sample_id" "$quantile" "$min_cpg_filter" "$metric"
-            done
+        for metric in "${all_metrics[@]}"; do
+            printf '%s\t%s\t%s\n' "$sample_id" "$quantile" "$metric"
         done
     done
 done |
-xargs -P "$MAX_JOBS" -n 4 bash -c '
+xargs -P "$MAX_JOBS" -n 3 bash -c '
     set -uo pipefail
     sample_id="$1"
     quantile="$2"
-    min_cpg_filter="$3"
-    metric="$4"
-    job_key="${sample_id}__q${quantile}__cpg${min_cpg_filter}__${metric}"
+    metric="$3"
+    job_key="${sample_id}__q${quantile}__${metric}"
     log_file="$LOG_DIR/${sample_id}/${job_key}.log"
     status_file="$STATUS_DIR/${job_key}.status"
     mkdir -p "$LOG_DIR/${sample_id}"
 
     set +e
-    echo "[START] sample=$sample_id quantile=$quantile min_cpg=$min_cpg_filter metric=$metric" >"$log_file"
-    "$0" "$sample_id" "$quantile" "$min_cpg_filter" "$metric" >>"$log_file" 2>&1
+    echo "[START] sample=$sample_id quantile=$quantile metric=$metric" >"$log_file"
+    "$0" "$sample_id" "$quantile" "$metric" >>"$log_file" 2>&1
     exit_code=$?
 
     if [[ "$exit_code" -eq 0 ]]; then
-        echo "[DONE]  sample=$sample_id quantile=$quantile min_cpg=$min_cpg_filter metric=$metric" >> "$log_file"
-    fi
-
-    if [[ "$exit_code" -eq 0 ]]; then
+        echo "[DONE]  sample=$sample_id quantile=$quantile metric=$metric" >> "$log_file"
         echo "ok" > "$status_file"
     else
-        echo "[FAILED] sample=$sample_id quantile=$quantile min_cpg=$min_cpg_filter metric=$metric exit_code=$exit_code" >> "$log_file"
+        echo "[FAILED] sample=$sample_id quantile=$quantile metric=$metric exit_code=$exit_code" >> "$log_file"
         echo "failed" > "$status_file"
     fi
 

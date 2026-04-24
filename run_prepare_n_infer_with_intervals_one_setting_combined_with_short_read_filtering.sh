@@ -2,17 +2,16 @@
 
 set -euo pipefail
 
-if [[ $# -ne 5 ]]; then
-	echo "Usage: $0 <sample_id> <quantile> <min_cpg_filter> <short_read_filter> <metric>"
-	echo "Example: $0 N2024-4049 0.6 50 2 nontumor_score_sum"
+if [[ $# -ne 4 ]]; then
+	echo "Usage: $0 <sample_id> <quantile> <short_read_filter> <metric>"
+	echo "Example: $0 N2024-4049 0.1 2 nontumor_score_mean"
 	exit 1
 fi
 
 sample_id=$1
 quantile=$2
-min_cpg_filter=$3
-short_read_filter=$4
-metric=$5
+short_read_filter=$3
+metric=$4
 
 case "$metric" in
 	nontumor_score_sum|nontumor_score_mean) ;;
@@ -23,7 +22,7 @@ case "$metric" in
 esac
 
 if [[ -z "${THRESHOLDS_CSV:-}" ]]; then
-	THRESHOLDS_CSV="/home/lciernik/general_notebooks/thresholds_control_${metric}.csv"
+	THRESHOLDS_CSV="/home/lciernik/general_notebooks/thresholds_control_${metric}_intervals.csv"
 fi
 
 if [[ ! -f "$THRESHOLDS_CSV" ]]; then
@@ -31,13 +30,13 @@ if [[ ! -f "$THRESHOLDS_CSV" ]]; then
 	exit 1
 fi
 
-setting_id="metric_${metric}_quantile_${quantile}_min_cpgs_${min_cpg_filter}_short_read_filter_min_covered_cpgs_${short_read_filter}_v2"
+setting_id="metric_${metric}_quantile_${quantile}_short_read_filter_min_covered_cpgs_${short_read_filter}_with_intervals"
 bam_path="/home/lciernik/shared_space_nanopore/calls/${sample_id}/aligned_to_13v2.bam"
 read_filter_feather="/home/lciernik/storage/data/wgbs_pp_data/${sample_id}/aligned_to_hg38.nontumor_pooled_ref_scored.feather"
 sample_out_dir="/home/lciernik/storage/data/wgbs_pp_data/${sample_id}/${setting_id}"
 mkdir -p "$sample_out_dir"
 
-echo "[INFO] Running approach 1+2 for sample=$sample_id metric=$metric quantile=$quantile min_cpg_filter=$min_cpg_filter short_read_filter=$short_read_filter"
+echo "[INFO] Running approach 1+3 (bin-based) for sample=$sample_id metric=$metric quantile=$quantile short_read_filter=$short_read_filter"
 
 if [[ ! -f "$bam_path" ]]; then
 	echo "[ERROR] BAM file not found: $bam_path" >&2
@@ -73,7 +72,6 @@ fi
 		--read-filter-feather "$read_filter_feather" \
 		--thresholds-file "$THRESHOLDS_CSV" \
 		--quantile "$quantile" \
-		--score-filter-min-cpgs "$min_cpg_filter" \
 		--short-read-min-covered-cpgs "$short_read_filter" \
 		--feather-cols read_name "$metric" covered_cpgs \
 		-t 32

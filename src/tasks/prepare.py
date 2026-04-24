@@ -81,34 +81,93 @@ def samtools_sort(
     return 0, "", ""
 
 
+def _load_thresholds_row(thresholds_file: Path, quantile: float) -> dict:
+    df = pd.read_csv(thresholds_file, index_col=0)
+    return df.loc[quantile].to_dict()
+
+
+def _assign_bin_thresholds(covered_cpgs: pd.Series, thresholds_row: dict) -> pd.Series:
+    """Assign per-read threshold based on CpG coverage bins derived from sorted column lower bounds.
+    Column keys are integer lower bounds; bins are [col_i, col_{i+1}) with [last_col, inf) for the last.
+    """
+    boundaries = sorted((int(k), float(v)) for k, v in thresholds_row.items())
+    result = pd.Series(float("nan"), index=covered_cpgs.index, dtype=float)
+    for i, (lo, thresh) in enumerate(boundaries):
+        hi = boundaries[i + 1][0] if i + 1 < len(boundaries) else None
+        mask = (
+            (covered_cpgs >= lo) & (covered_cpgs < hi)
+            if hi is not None
+            else (covered_cpgs >= lo)
+        )
+        result[mask] = thresh
+    return result
+
+
 def get_readnames_from_feather(
     feather_path: Path,
     short_read_min_covered_cpgs: int | None = None,
     non_tumor_score_threshold: float | None = None,
     score_filter_min_cpgs: int | None = None,
+    thresholds_file: Path | None = None,
+    quantile: float | None = None,
     read_name_col: str = "read_name",
     score_col: str = "nontumor_score_sum",
     cpg_col: str = "covered_cpgs",
 ) -> pd.Series:
-    """Extracts read names from a feather file based on filtering criteria for non-tumor score and covered CpGs."""
+    """Extracts read names from a feather file, applying up to three filter modes:
+    1. Short-read filter: drop reads with covered_cpgs < short_read_min_covered_cpgs.
+    2. Score filter (single threshold): keep reads with covered_cpgs < score_filter_min_cpgs
+       OR score < threshold. Threshold comes from non_tumor_score_threshold directly, or
+       is looked up from thresholds_file at the given quantile and score_filter_min_cpgs column.
+    3. Bin-based score filter: when thresholds_file + quantile are given without
+       score_filter_min_cpgs, each read is assigned a threshold based on its cpg coverage bin.
+       Reads with score < bin_threshold are kept (NaN bin → keep).
+    Modes 2 and 3 are mutually exclusive.
+    """
     feather_path = Path(feather_path).resolve()
     logger.info(f"Loading read filter feather: {feather_path}")
     df = pd.read_feather(feather_path)
     nr_reads_orig = len(df)
-    # Filter read if they do not cover enough CPGs OR if they are long enough but have a high non-tumor score (i.e., likely non-tumor)
-    if short_read_min_covered_cpgs is not None:
-        mask_keep = (df[cpg_col] >= short_read_min_covered_cpgs)
-        df = df.loc[mask_keep, :]
 
-    if score_filter_min_cpgs is not None and non_tumor_score_threshold is not None:
-        likely_tumor_reads = (df[cpg_col] < score_filter_min_cpgs) | (
+    if short_read_min_covered_cpgs is not None:
+        df = df.loc[df[cpg_col] >= short_read_min_covered_cpgs]
+
+    if thresholds_file is not None and quantile is not None:
+        row = _load_thresholds_row(Path(thresholds_file), quantile)
+        if score_filter_min_cpgs is not None:
+            # Approach 2: single threshold from CSV column indexed by min-CpG value
+            col_key = str(score_filter_min_cpgs)
+            if col_key not in row:
+                raise ValueError(f"Column '{col_key}' not found in {thresholds_file}")
+            threshold = float(row[col_key])
+            logger.info(
+                f"Score filter (approach 2): threshold={threshold} (quantile={quantile}, min_cpgs={score_filter_min_cpgs})"
+            )
+            likely_tumor = (df[cpg_col] < score_filter_min_cpgs) | (
+                df[score_col] < threshold
+            )
+        else:
+            # Approach 3: per-read threshold from coverage bins
+            per_read_thresh = _assign_bin_thresholds(df[cpg_col], row)
+            n_binned = per_read_thresh.notna().sum()
+            logger.info(
+                f"Score filter (approach 3): bin-based thresholds (quantile={quantile}), {n_binned}/{len(df)} reads matched a bin"
+            )
+            likely_tumor = per_read_thresh.isna() | (df[score_col] < per_read_thresh)
+        df = df.loc[likely_tumor]
+    elif non_tumor_score_threshold is not None and score_filter_min_cpgs is not None:
+        # Approach 2: direct threshold (no CSV lookup)
+        logger.info(
+            f"Score filter (approach 2): threshold={non_tumor_score_threshold} (direct, min_cpgs={score_filter_min_cpgs})"
+        )
+        likely_tumor = (df[cpg_col] < score_filter_min_cpgs) | (
             df[score_col] < non_tumor_score_threshold
         )
-        df = df.loc[likely_tumor_reads, :]
+        df = df.loc[likely_tumor]
+
     read_names = df.loc[:, read_name_col]
     logger.info(
-        f"Keeping {len(read_names)} / {nr_reads_orig} reads after feather-based filtering "
-        f"('{cpg_col}' >= {short_read_min_covered_cpgs}) AND ('{score_col}' < {non_tumor_score_threshold} OR '{cpg_col}' < {score_filter_min_cpgs})"
+        f"Keeping {len(read_names)} / {nr_reads_orig} reads after feather-based filtering"
     )
     return read_names
 
@@ -309,6 +368,8 @@ def main(args):
                 short_read_min_covered_cpgs=args.short_read_min_covered_cpgs,
                 non_tumor_score_threshold=args.non_tumor_score_threshold,
                 score_filter_min_cpgs=args.score_filter_min_cpgs,
+                thresholds_file=args.thresholds_file,
+                quantile=args.quantile,
                 read_name_col=read_name_col,
                 score_col=score_col,
                 cpg_col=cpg_col,

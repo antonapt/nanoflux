@@ -124,6 +124,23 @@ def run():
         default=["read_name", "nontumor_score_sum", "covered_cpgs"],
         help="Column names in the feather file for: read name, score, CpG coverage (default: read_name nontumor_score_sum covered_cpgs). Used with --read-filter-feather.",
     )
+    prepare_parser.add_argument(
+        "--thresholds-file",
+        type=pathtype.Path(exists=True, readable=True),
+        default=None,
+        help=(
+            "Path to a CSV file with a 'quantile' column and per-setting threshold columns. "
+            "Selects a threshold row by --quantile. "
+            "With --score-filter-min-cpgs: approach 2 (single threshold from that column). "
+            "Without --score-filter-min-cpgs: approach 3 (bin-based per-read thresholds, columns must be interval strings like '[1,5)')."
+        ),
+    )
+    prepare_parser.add_argument(
+        "--quantile",
+        type=float,
+        default=None,
+        help="Quantile value used to select the threshold row from --thresholds-file.",
+    )
 
     prepare_parser.set_defaults(func=prepare)
 
