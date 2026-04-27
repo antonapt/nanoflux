@@ -109,6 +109,12 @@ def run():
         help="Minimum MAPQ to retain an alignment (default: 0, no filtering). Cannot be used with --skip-sort-index",
     )
     prepare_parser.add_argument(
+        "--filter-threshold",
+        type=float,
+        default=None,
+        help="Minimum modification certainty to retain a site in the pileup. If not set, modkit will automatically determine a threshold. See github.com/nanoporetech/modkit/blob/master/filtering.md for more details.",
+    )
+    prepare_parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Perform a dry-run without actually processing or writing files",

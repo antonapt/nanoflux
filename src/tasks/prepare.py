@@ -143,6 +143,7 @@ def modkit_pileup(
     output_path: Path,
     reference: Path,
     threads: int,
+    filter_threshold: float | None = None,
     dry_run: bool = False,
 ) -> tuple[int, str, str]:
     cmd = [
@@ -159,6 +160,11 @@ def modkit_pileup(
         "--suppress-progress",  # prevent huge stdout
         # "--log-file" # TODO: add a path to this
     ]
+
+    if filter_threshold is not None:
+        cmd.append("--filter-threshold")
+        cmd.append(str(filter_threshold))
+
     logger.info("Running [green bold]modkit pileup[/]")
     logger.debug(f"Running command: {' '.join(cmd)}")
 
@@ -270,6 +276,7 @@ def main(args):
         output_path=pileup_file,
         reference=reference,
         threads=args.threads,
+        filter_threshold=args.filter_threshold,
         dry_run=args.dry_run,
     )
 
