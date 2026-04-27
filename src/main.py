@@ -70,7 +70,14 @@ def run():
         type=pathtype.Path(exists=True, name_matches_re=r"\.fa$", readable=True),
         required=False,
         default=files("data") / "refs" / "chm13v2.fa",
-        help="Path to T2T CHM13v2.0 reference genome",
+        help="Path to T2T CHM13v2.0 reference genome. By default, uses T2T CHM13v2.0 reference genome.",
+    )
+    prepare_parser.add_argument(
+        "--anno",
+        type=pathtype.Path(exists=True, name_matches_re=r"\.bed$", readable=True),
+        required=False,
+        default=files("data") / "features" / "EPIC_chm13v2.bed",
+        help="Path to annotation BED file with features to intersect with. By default, uses EPIC array annotation lifted over to T2T CHM13v2.0",
     )
     prepare_parser.add_argument(
         "--skip-alignment",
@@ -81,6 +88,16 @@ def run():
         "--skip-sort-index",
         action="store_true",
         help="Skip sorting and indexing if SAM/BAM is already sorted and indexed",
+    )
+    prepare_parser.add_argument(
+        "--hg38",
+        action="store_true",
+        help="Use hg38 reference and annotation. Cannot be used with --chm13v2. Overrides --ref and --anno if those are also passed.",
+    )
+    prepare_parser.add_argument(
+        "--chm13v2",
+        action="store_true",
+        help="Use T2T CHM13v2.0 reference and annotation. Cannot be used with --hg38. Overrides --ref and --anno if those are also passed.",
     )
     prepare_parser.add_argument(
         "--dry-run",

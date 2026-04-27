@@ -168,13 +168,23 @@ def main(args):
     if args.debug or args.dry_run:
         logger.setLevel(logging.DEBUG)
 
-    logger.info("Running [blue bold]nanoflux prepare[/]")
-
     input_file = args.input.resolve()
     output_dir = args.output.resolve()
-    reference = args.ref.resolve()
-
-    anno_file = files("data") / "features" / "mapping_EPIC.bed"
+    
+    if not args.hg38 and not args.chm13v2:
+        reference = args.ref.resolve()
+        annotation = args.anno.resolve()
+    elif args.hg38 and not args.chm13v2:
+        reference = files("data") / "refs" / "hg38.fa"
+        annotation = files("data") / "features" / "EPIC_hg38.bed"
+    elif args.chm13v2 and not args.hg38:
+        reference = files("data") / "refs" / "chm13v2.fa"
+        annotation = files("data") / "features" / "EPIC_chm13v2.bed"
+    else:
+        logger.error("Cannot specify both --hg38 and --chm13v2 flags. Please choose one reference genome.")
+        return
+    
+    logger.info("Running [blue bold]nanoflux prepare[/]")
 
     if not args.skip_alignment:
         output_file = output_dir / "aligned_to_CHM13v2.sam"
@@ -223,7 +233,7 @@ def main(args):
     bedtools_intersect(
         input_path=pileup_file,
         output_path=methyl_file,
-        anno_path=anno_file,  # type: ignore
+        anno_path=annotation,  # type: ignore
         dry_run=args.dry_run,
     )
 
