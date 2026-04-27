@@ -170,24 +170,29 @@ def main(args):
 
     input_file = args.input.resolve()
     output_dir = args.output.resolve()
-    
+
     if not args.hg38 and not args.chm13v2:
         reference = args.ref.resolve()
         annotation = args.anno.resolve()
+        ref_str = reference.name.removesuffix(".fa")
     elif args.hg38 and not args.chm13v2:
         reference = files("data") / "refs" / "hg38.fa"
         annotation = files("data") / "features" / "EPIC_hg38.bed"
+        ref_str = "hg38"
     elif args.chm13v2 and not args.hg38:
         reference = files("data") / "refs" / "chm13v2.fa"
-        annotation = files("data") / "features" / "EPIC_chm13v2.bed"
+        annotation = files("data") / "features" / "EPIC_CHM13v2.bed"
+        ref_str = "CHM13v2"
     else:
-        logger.error("Cannot specify both --hg38 and --chm13v2 flags. Please choose one reference genome.")
+        logger.error(
+            "Cannot specify both --hg38 and --chm13v2 flags. Please choose one reference genome."
+        )
         return
-    
+
     logger.info("Running [blue bold]nanoflux prepare[/]")
 
     if not args.skip_alignment:
-        output_file = output_dir / "aligned_to_CHM13v2.sam"
+        output_file = output_dir / f"aligned_to_{ref_str}.sam"
         prepare_location(output_file, args.create_dir)
         minimap2_align(
             input_path=input_file,
@@ -199,7 +204,7 @@ def main(args):
         input_file = output_file
 
     if not args.skip_sort_index:
-        output_file = output_dir / "aligned_to_CHM13v2.bam"
+        output_file = output_dir / f"aligned_to_{ref_str}.bam"
         prepare_location(output_file, args.create_dir)
         samtools_sort(
             input_path=input_file,
@@ -209,7 +214,7 @@ def main(args):
         )
         input_file = output_file
 
-        output_file = output_dir / "aligned_to_CHM13v2.bam.bai"
+        output_file = output_dir / f"aligned_to_{ref_str}.bam.bai"
         prepare_location(output_file, args.create_dir)
         samtools_index(
             input_path=input_file,
