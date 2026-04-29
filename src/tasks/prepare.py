@@ -188,24 +188,25 @@ def main(args):
         )
         input_file = output_file
 
-    output_file = output_dir / "aligned_to_CHM13v2.bam"
-    prepare_location(output_file, args.create_dir)
-    samtools_sort(
-        input_path=input_file,
-        output_path=output_file,
-        threads=args.threads,
-        dry_run=args.dry_run,
-    )
-    input_file = output_file
+    if not args.skip_sort_index:
+        output_file = output_dir / "aligned_to_CHM13v2.bam"
+        prepare_location(output_file, args.create_dir)
+        samtools_sort(
+            input_path=input_file,
+            output_path=output_file,
+            threads=args.threads,
+            dry_run=args.dry_run,
+        )
+        input_file = output_file
 
-    output_file = output_dir / "aligned_to_CHM13v2.bam.bai"
-    prepare_location(output_file, args.create_dir)
-    samtools_index(
-        input_path=input_file,
-        output_path=output_file,
-        threads=args.threads,
-        dry_run=args.dry_run,
-    )
+        output_file = output_dir / "aligned_to_CHM13v2.bam.bai"
+        prepare_location(output_file, args.create_dir)
+        samtools_index(
+            input_path=input_file,
+            output_path=output_file,
+            threads=args.threads,
+            dry_run=args.dry_run,
+        )
 
     pileup_file = output_dir / "pileup.bed"
     prepare_location(pileup_file, args.create_dir)
