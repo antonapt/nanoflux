@@ -18,6 +18,13 @@ conda create -n $ENV_NAME python=3.12 -y
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate $ENV_NAME
 
+if [ -z "$CONDA_PREFIX" ]; then
+    echo "Error: Conda environment is not active."
+    exit 1
+fi
+
+CONDA_PYTHON="$CONDA_PREFIX/bin/python"
+
 echo " -------- Installing Bioinformatics Tools (Bioconda) --------"
 conda install -y -c conda-forge -c bioconda uv
 if [[ "$OSTYPE" == darwin* ]]; then
@@ -40,7 +47,7 @@ fi
 
 echo " -------- Model Download --------"
 if [ -f "data/download_models.py" ]; then
-    uv run --no-project --with requests data/download_models.py
+    uv run --python "$CONDA_PYTHON" --no-project --with requests data/download_models.py
 else
     echo "Warning: download_models.py not found at data/."
 fi
@@ -48,7 +55,7 @@ fi
 echo " -------- Install Python dependencies --------"
 if [ -f "pyproject.toml" ]; then
     echo "Installing package and dependencies into conda environment..."
-    if ! uv pip install -e .; then
+    if ! uv pip install --python "$CONDA_PYTHON" -e .; then
         echo "Error: Failed to install dependencies with uv!"
         echo "Reverting environment setup..."
         conda deactivate

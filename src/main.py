@@ -78,6 +78,11 @@ def run():
         help="Skip alignment if SAM/BAM is already aligned to T2T CHM13v2.0",
     )
     prepare_parser.add_argument(
+        "--skip-sort-index",
+        action="store_true",
+        help="Skip sorting and indexing if SAM/BAM is already sorted and indexed",
+    )
+    prepare_parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Perform a dry-run without actually processing or writing files",
