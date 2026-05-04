@@ -98,6 +98,13 @@ def run():
         required=True,
         help="Path to input bed file",
     )
+    infer_parser.add_argument(
+        "-m",
+        "--model",
+        choices=["brain_only", "pancancer_coarse_lbls", "pancancer_fine_lbls"],
+        default="brain_only",
+        help="Model to use for inference (default: brain_only)",
+    )
 
     infer_parser.set_defaults(func=infer)
 

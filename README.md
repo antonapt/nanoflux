@@ -72,6 +72,20 @@ Run the NanoFlux inference pipeline on your `methylation.bed` file (output from 
 nanoflux infer -i "$input_file" -o "$output_directory" -c
 ```
 
+By default, the brain tumor classifier is used. Use the `-m`/`--model` flag to select a different model:
+
+```bash
+nanoflux infer -i "$input_file" -o "$output_directory" -c -m pancancer_coarse_lbls
+```
+
+#### Available models
+
+| Model | Classes | Description |
+|---|---|---|
+| `brain_only` *(default)* | 21 | Brain tumor methylation classifier (ATRT, DMG, EPN subtypes, GBM, IDH GLM, MB subtypes, PA, PLEX, and controls). Corresponds to the model described in the accompanying publication. |
+| `pancancer_coarse_lbls` | 33 | Brain tumor classifier extended with 12 broad extra-cranial cancer categories (bladder, breast, colon, kidney, liver, lung, lymphoma/leukemia, melanoma, ovary, pancreas, prostate, sarcoma). Use when the tumor origin is unknown. |
+| `pancancer_fine_lbls` | 107 | Fine-grained pan-cancer classifier covering brain tumor subtypes and detailed histological subtypes across all major cancer types. |
+
 The inference will:
 - Extract methylation features from the prepared `.bed` file (`input_file`)
 - Apply the ensemble classifier

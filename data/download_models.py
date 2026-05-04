@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import unquote
 from xml.etree import ElementTree
 
 import requests
@@ -7,7 +8,6 @@ share_token = "Ad7KZ4XMGFjFM4a"
 base_url = "https://tubcloud.tu-berlin.de"
 dav_url = f"{base_url}/public.php/webdav/"
 password = ""
-
 
 def download():
     target_dir = Path(__file__).parent / "models"
@@ -33,16 +33,18 @@ def download():
             print(f"Found folder: {href}")
             continue
 
-        file_name = href.split("/")[-1]
-        dest_path = target_dir / file_name
+        dav_path = "/public.php/webdav/"
+        relative = unquote(href).removeprefix(dav_path)
+        dest_path = target_dir / relative
 
         if dest_path.exists():
             print(f"Skipping existing file: {dest_path}")
             continue
 
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
         download_url = f"{base_url}{href}"
 
-        print(f"Downloading: {file_name}...")
+        print(f"Downloading: {relative}...")
         r = requests.get(download_url, auth=(share_token, password))
         with open(dest_path, "wb") as f:
             f.write(r.content)
