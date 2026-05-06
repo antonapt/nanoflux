@@ -1,4 +1,5 @@
 import logging
+from argparse import ArgumentError
 from importlib.resources import files
 from pathlib import Path
 from subprocess import PIPE, Popen, run
@@ -171,23 +172,21 @@ def main(args):
     input_file = args.input.resolve()
     output_dir = args.output.resolve()
 
-    if not args.hg38 and not args.chm13v2:
-        reference = args.ref.resolve()
-        annotation = args.anno.resolve()
-        ref_str = reference.name.removesuffix(".fa")
-    elif args.hg38 and not args.chm13v2:
+    # mutual exclusivity is enforced in main.py, so we don't need to check for other flags here
+    if args.hg38:
         reference = files("data") / "refs" / "hg38.fa"
         annotation = files("data") / "features" / "EPIC_hg38.bed"
         ref_str = "hg38"
-    elif args.chm13v2 and not args.hg38:
+    elif args.hg38_as:
+        reference = files("data") / "refs" / "hg38-as.fa"
+        annotation = files("data") / "features" / "EPIC_hg38.bed"
+        ref_str = "hg38-as"
+    elif args.chm13v2:
         reference = files("data") / "refs" / "chm13v2.fa"
         annotation = files("data") / "features" / "EPIC_CHM13v2.bed"
         ref_str = "CHM13v2"
     else:
-        logger.error(
-            "Cannot specify both --hg38 and --chm13v2 flags. Please choose one reference genome."
-        )
-        return
+        raise ArgumentError(None, "No reference option selected")
 
     logger.info("Running [blue bold]nanoflux prepare[/]")
 
