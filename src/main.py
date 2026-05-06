@@ -64,8 +64,8 @@ def run():
         help="Path to input SAM/BAM file",
     )
 
-    # mutually exclusive required args:
-    reference = prepare_parser.add_mutually_exclusive_group(required=True)
+    # mutually exclusive args (default handled if none passed):
+    reference = prepare_parser.add_mutually_exclusive_group(required=False)
     reference.add_argument(
         "--hg38",
         action="store_true",
@@ -120,6 +120,11 @@ def run():
     args = parser.parse_args(
         args=None if sys.argv[1:] else ["--help"]
     )  # display help if no subcommand is passed
+
+    # If running prepare and no reference flag specified, default to --chm13v2
+    if args.command == "prepare":
+        if not (getattr(args, "hg38", False) or getattr(args, "hg38_as", False) or getattr(args, "chm13v2", False)):
+            args.chm13v2 = True
 
     args.func(args)
 

@@ -81,8 +81,8 @@ if [[ "$REFERENCE" == "hg38" ]]; then
     fi
 elif [[ "$REFERENCE" == "hg38-as" ]]; then
     if [ ! -f "$REF_DIR/hg38-as.fna" ]; then
-        echo "Downloading hg38 reference genome..."
-        curl -L --progress-bar https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.gz \ 
+        echo "Downloading hg38 analysis set reference genome..."
+        curl -L --progress-bar https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.gz \
         -o "$REF_DIR/hg38-as.fna.gz"
         gunzip -c "$REF_DIR/hg38-as.fna.gz" > "$REF_DIR/hg38-as.fna"
         rm "$REF_DIR/hg38-as.fna.gz"

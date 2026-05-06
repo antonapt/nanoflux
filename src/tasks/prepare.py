@@ -178,7 +178,7 @@ def main(args):
         annotation = files("data") / "features" / "EPIC_hg38.bed"
         ref_str = "hg38"
     elif args.hg38_as:
-        reference = files("data") / "refs" / "hg38-as.fa"
+        reference = files("data") / "refs" / "hg38-as.fna"
         annotation = files("data") / "features" / "EPIC_hg38.bed"
         ref_str = "hg38-as"
     elif args.chm13v2:
