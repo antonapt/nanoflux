@@ -101,6 +101,12 @@ def run():
         help="Skip sorting and indexing if SAM/BAM is already sorted and indexed",
     )
     prepare_parser.add_argument(
+        "--min-mapq",
+        type=int,
+        default=0,
+        help="Minimum MAPQ to retain an alignment (default: 0, no filtering). Cannot be used with --skip-sort-index",
+    )
+    prepare_parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Perform a dry-run without actually processing or writing files",
@@ -127,6 +133,13 @@ def run():
     args = parser.parse_args(
         args=None if sys.argv[1:] else ["--help"]
     )  # display help if no subcommand is passed
+
+    if args.command == "prepare":
+        # validation of prepare subcommand args
+        if getattr(args, "skip_sort_index", False) and getattr(args, "min_mapq", 0) > 0:
+            parser.error(
+                "--skip-sort-index cannot be used when --min-mapq is greater than 0"
+            )
 
     args.func(args)
 

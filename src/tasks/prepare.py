@@ -16,6 +16,7 @@ def minimap2_align(
     threads: int,
     dry_run: bool = False,
 ) -> tuple[int, str, str]:
+
     cmd_sam = [
         "samtools",
         "fastq",
@@ -47,6 +48,43 @@ def minimap2_align(
         out, err = mm2.communicate()
         sam.wait()
         return mm2.returncode, out, err
+    return 0, "", ""
+
+
+@with_tmpfile
+def samtools_filter(
+    *,
+    input_path: Path,
+    output_path: Path,
+    threads: int,
+    min_mapq: int = 1,  # mapq > 0 discards multimapped reads
+    dry_run: bool = False,
+) -> tuple[int, str, str]:
+
+    if min_mapq == 0:
+        logger.warning(
+            "[red bold]min_mapq is set to 0[/], which means multimapped reads will be included. \
+                This may lead to inaccurate methylation calls in repetitive regions."
+        )
+
+    cmd = [
+        "samtools",
+        "view",
+        "-b",
+        "-o",
+        str(output_path),
+        "-@",
+        str(threads),
+        "-q",
+        str(min_mapq),
+        str(input_path),
+    ]
+    logger.info("Running [green bold]samtools view[/] (mapq filtering)")
+    logger.debug(f"Running command: {' '.join(cmd)}")
+
+    if not dry_run:
+        proc = run(cmd, capture_output=True, text=True)
+        return proc.returncode, proc.stdout, proc.stderr
     return 0, "", ""
 
 
@@ -191,9 +229,25 @@ def main(args):
         )
         input_file = output_file
 
+    # if sort and index are skipped mapq filtering can not be applied. This gets checked in the parser
     if not args.skip_sort_index:
-        output_file = output_dir / f"aligned_to_{args.ref}.bam"
-        prepare_location(output_file, args.create_dir)
+        filename = f"aligned_to_{args.ref}_q{args.min_mapq}.bam"
+
+        if args.min_mapq > 0:
+            prepare_location(output_dir / filename, args.create_dir)
+            samtools_filter(
+                input_path=input_file,
+                output_path=output_dir / filename,
+                threads=args.threads,
+                min_mapq=args.min_mapq,
+                dry_run=args.dry_run,
+            )
+            input_file = output_dir / filename
+
+        output_file = output_dir / filename
+        prepare_location(
+            output_file, args.create_dir, allow_overwrite=(args.min_mapq > 0)
+        )
         samtools_sort(
             input_path=input_file,
             output_path=output_file,
@@ -202,7 +256,7 @@ def main(args):
         )
         input_file = output_file
 
-        output_file = output_dir / f"aligned_to_{args.ref}.bam.bai"
+        output_file = output_dir / f"{filename}.bai"
         prepare_location(output_file, args.create_dir)
         samtools_index(
             input_path=input_file,
