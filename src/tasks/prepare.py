@@ -57,15 +57,9 @@ def samtools_filter(
     input_path: Path,
     output_path: Path,
     threads: int,
-    min_mapq: int = 1,  # mapq > 0 discards multimapped reads
+    min_mapq: int = 0,  # mapq > 0 discards multimapped reads
     dry_run: bool = False,
 ) -> tuple[int, str, str]:
-
-    if min_mapq == 0:
-        logger.warning(
-            "[red bold]min_mapq is set to 0[/], which means multimapped reads will be included. \
-                This may lead to inaccurate methylation calls in repetitive regions."
-        )
 
     cmd = [
         "samtools",
@@ -243,6 +237,10 @@ def main(args):
                 dry_run=args.dry_run,
             )
             input_file = output_dir / filename
+        elif args.min_mapq == 0:
+            logger.warning(
+                "[red bold]min_mapq is set to 0[/], which means multimapped reads will be included. This may lead to inaccurate methylation calls in repetitive regions."
+            )
 
         output_file = output_dir / filename
         prepare_location(
