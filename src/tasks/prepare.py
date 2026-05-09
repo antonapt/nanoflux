@@ -175,6 +175,45 @@ def modkit_pileup(
 
 
 @with_tmpfile
+def modkit_extract(
+    *,
+    input_path: Path,
+    output_path: Path,
+    reference: Path,
+    threads: int,
+    dry_run: bool = False,
+) -> tuple[int, str, str]:
+    cmd = [
+        "modkit",
+        "extract",
+        str(input_path),
+        "null",  # modkit requires an output path but we will ignore it since we only want the read-level features
+        "--read-calls-path",
+        str(output_path),
+        "-t",
+        str(threads),
+        "--mapped-only",
+        "--cpg",
+        "--no-filtering",
+        "--ignore",
+        "h",
+        "--ignore-implicit",
+        "--ref",
+        str(reference),
+        "--suppress-progress",  # prevent huge stdout
+        # "--log-file" # TODO: add a path to this
+    ]
+
+    logger.info("Running [green bold]modkit extract[/]")
+    logger.debug(f"Running command: {' '.join(cmd)}")
+
+    if not dry_run:
+        proc = run(cmd, capture_output=True, text=True)
+        return proc.returncode, proc.stdout, proc.stderr
+    return 0, "", ""
+
+
+@with_tmpfile
 def bedtools_intersect(
     *,
     input_path: Path,
@@ -279,6 +318,17 @@ def main(args):
         filter_threshold=args.filter_threshold,
         dry_run=args.dry_run,
     )
+
+    if args.extract_reads:
+        reads_file = output_dir / "reads.tsv"
+        prepare_location(reads_file, args.create_dir)
+        modkit_extract(
+            input_path=input_file,
+            output_path=reads_file,
+            reference=reference,
+            threads=args.threads,
+            dry_run=args.dry_run,
+        )
 
     methyl_file = output_dir / "methylation.bed"
     prepare_location(methyl_file, args.create_dir)
