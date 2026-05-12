@@ -6,6 +6,7 @@ import pathtype
 from rich_argparse import RichHelpFormatter
 
 from src.tasks import infer, prepare
+from src.utils.types import min_max_float
 
 VERSION = "0.0.1"
 
@@ -110,7 +111,7 @@ def run():
     )
     prepare_parser.add_argument(
         "--filter-threshold",
-        type=float,
+        type=min_max_float(0.0, 1.0),
         default=None,
         help="Minimum modification certainty to retain a site in the pileup. If not set, modkit will automatically determine a threshold. See github.com/nanoporetech/modkit/blob/master/filtering.md for more details.",
     )
