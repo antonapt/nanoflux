@@ -1,5 +1,4 @@
 import logging
-from argparse import ArgumentError
 from importlib.resources import files
 from pathlib import Path
 from subprocess import PIPE, Popen, run
