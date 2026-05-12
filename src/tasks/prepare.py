@@ -172,26 +172,16 @@ def main(args):
     input_file = args.input.resolve()
     output_dir = args.output.resolve()
 
-    # mutual exclusivity is enforced in main.py, so we don't need to check for other flags here
-    if args.hg38:
-        reference = files("data") / "refs" / "hg38.fa"
-        annotation = files("data") / "features" / "EPIC_hg38.bed"
-        ref_str = "hg38"
-    elif args.hg38_as:
-        reference = files("data") / "refs" / "hg38-as.fna"
-        annotation = files("data") / "features" / "EPIC_hg38.bed"
-        ref_str = "hg38-as"
-    elif args.chm13v2:
-        reference = files("data") / "refs" / "chm13v2.fa"
-        annotation = files("data") / "features" / "EPIC_CHM13v2.bed"
-        ref_str = "CHM13v2"
-    else:
-        raise ArgumentError(None, "No reference option selected")
+    reference = Path(str(files("data") / "refs" / f"{args.ref}.fa"))
+    annotation = Path(str(files("data") / "features" / f"EPIC_{args.ref}.bed"))
+
+    if not reference.exists():
+        raise FileNotFoundError(f"Reference file not found at {reference}")
 
     logger.info("Running [blue bold]nanoflux prepare[/]")
 
     if not args.skip_alignment:
-        output_file = output_dir / f"aligned_to_{ref_str}.sam"
+        output_file = output_dir / f"aligned_to_{args.ref}.sam"
         prepare_location(output_file, args.create_dir)
         minimap2_align(
             input_path=input_file,
@@ -203,7 +193,7 @@ def main(args):
         input_file = output_file
 
     if not args.skip_sort_index:
-        output_file = output_dir / f"aligned_to_{ref_str}.bam"
+        output_file = output_dir / f"aligned_to_{args.ref}.bam"
         prepare_location(output_file, args.create_dir)
         samtools_sort(
             input_path=input_file,
@@ -213,7 +203,7 @@ def main(args):
         )
         input_file = output_file
 
-        output_file = output_dir / f"aligned_to_{ref_str}.bam.bai"
+        output_file = output_dir / f"aligned_to_{args.ref}.bam.bai"
         prepare_location(output_file, args.create_dir)
         samtools_index(
             input_path=input_file,
