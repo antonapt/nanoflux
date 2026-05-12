@@ -95,12 +95,14 @@ def run():
         action="store_true",
         help="Skip alignment if SAM/BAM is already aligned to T2T CHM13v2.0",
     )
-    prepare_parser.add_argument(
+
+    bam = prepare_parser.add_mutually_exclusive_group(required=False)
+    bam.add_argument(
         "--skip-sort-index",
         action="store_true",
         help="Skip sorting and indexing if SAM/BAM is already sorted and indexed",
     )
-    prepare_parser.add_argument(
+    bam.add_argument(
         "--min-mapq",
         type=int,
         default=0,
@@ -133,13 +135,6 @@ def run():
     args = parser.parse_args(
         args=None if sys.argv[1:] else ["--help"]
     )  # display help if no subcommand is passed
-
-    if args.command == "prepare":
-        # validation of prepare subcommand args
-        if getattr(args, "skip_sort_index", False) and getattr(args, "min_mapq", 0) > 0:
-            parser.error(
-                "--skip-sort-index cannot be used when --min-mapq is greater than 0"
-            )
 
     args.func(args)
 
