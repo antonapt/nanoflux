@@ -168,16 +168,19 @@ def main(args):
     if args.debug or args.dry_run:
         logger.setLevel(logging.DEBUG)
 
-    logger.info("Running [blue bold]nanoflux prepare[/]")
-
     input_file = args.input.resolve()
     output_dir = args.output.resolve()
-    reference = args.ref.resolve()
 
-    anno_file = files("data") / "features" / "mapping_EPIC.bed"
+    reference = Path(str(files("data") / "refs" / f"{args.ref}.fa"))
+    annotation = Path(str(files("data") / "features" / f"EPIC_{args.ref}.bed"))
+
+    if not reference.exists():
+        raise FileNotFoundError(f"Reference file not found at {reference}")
+
+    logger.info("Running [blue bold]nanoflux prepare[/]")
 
     if not args.skip_alignment:
-        output_file = output_dir / "aligned_to_CHM13v2.sam"
+        output_file = output_dir / f"aligned_to_{args.ref}.sam"
         prepare_location(output_file, args.create_dir)
         minimap2_align(
             input_path=input_file,
@@ -189,7 +192,7 @@ def main(args):
         input_file = output_file
 
     if not args.skip_sort_index:
-        output_file = output_dir / "aligned_to_CHM13v2.bam"
+        output_file = output_dir / f"aligned_to_{args.ref}.bam"
         prepare_location(output_file, args.create_dir)
         samtools_sort(
             input_path=input_file,
@@ -199,7 +202,7 @@ def main(args):
         )
         input_file = output_file
 
-        output_file = output_dir / "aligned_to_CHM13v2.bam.bai"
+        output_file = output_dir / f"aligned_to_{args.ref}.bam.bai"
         prepare_location(output_file, args.create_dir)
         samtools_index(
             input_path=input_file,
@@ -223,7 +226,7 @@ def main(args):
     bedtools_intersect(
         input_path=pileup_file,
         output_path=methyl_file,
-        anno_path=anno_file,  # type: ignore
+        anno_path=annotation,  # type: ignore
         dry_run=args.dry_run,
     )
 

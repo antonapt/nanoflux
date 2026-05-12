@@ -64,14 +64,32 @@ def run():
         help="Path to input SAM/BAM file",
     )
 
-    # optional args:
-    prepare_parser.add_argument(
-        "--ref",
-        type=pathtype.Path(exists=True, name_matches_re=r"\.fa$", readable=True),
-        required=False,
-        default=files("data") / "refs" / "chm13v2.fa",
-        help="Path to T2T CHM13v2.0 reference genome",
+    # mutually exclusive args (default handled if none passed):
+    reference = prepare_parser.add_mutually_exclusive_group(required=False)
+    reference.add_argument(
+        "--chm13v2",
+        action="store_const",
+        dest="ref",
+        const="chm13v2",
+        default="chm13v2",
+        help="Use T2T CHM13v2.0 reference and annotation. Cannot be used with --hg38. Overrides --ref and --anno if those are also passed.",
     )
+    reference.add_argument(
+        "--hg38",
+        action="store_const",
+        dest="ref",
+        const="hg38",
+        help="Use hg38 reference and annotation. Cannot be used with --chm13v2. Overrides --ref and --anno if those are also passed.",
+    )
+    reference.add_argument(
+        "--hg38-as",
+        action="store_const",
+        dest="ref",
+        const="hg38-as",
+        help="Use hg38 analysis set reference and annotation. Cannot be used with --chm13v2. Overrides --ref and --anno if those are also passed.",
+    )
+
+    # optional args:
     prepare_parser.add_argument(
         "--skip-alignment",
         action="store_true",
@@ -109,6 +127,7 @@ def run():
     args = parser.parse_args(
         args=None if sys.argv[1:] else ["--help"]
     )  # display help if no subcommand is passed
+
     args.func(args)
 
 
