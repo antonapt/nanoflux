@@ -3,7 +3,7 @@ from xml.etree import ElementTree
 
 import requests
 
-share_token = "Ad7KZ4XMGFjFM4a"
+share_token = "y5ZpkFFbDRirBog"
 base_url = "https://tubcloud.tu-berlin.de"
 dav_url = f"{base_url}/public.php/webdav/"
 password = ""
