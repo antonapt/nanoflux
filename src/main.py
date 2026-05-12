@@ -95,10 +95,18 @@ def run():
         action="store_true",
         help="Skip alignment if SAM/BAM is already aligned to T2T CHM13v2.0",
     )
-    prepare_parser.add_argument(
+
+    bam = prepare_parser.add_mutually_exclusive_group(required=False)
+    bam.add_argument(
         "--skip-sort-index",
         action="store_true",
         help="Skip sorting and indexing if SAM/BAM is already sorted and indexed",
+    )
+    bam.add_argument(
+        "--min-mapq",
+        type=int,
+        default=0,
+        help="Minimum MAPQ to retain an alignment (default: 0, no filtering). Cannot be used with --skip-sort-index",
     )
     prepare_parser.add_argument(
         "--dry-run",
