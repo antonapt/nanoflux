@@ -6,6 +6,7 @@ import pathtype
 from rich_argparse import RichHelpFormatter
 
 from src.tasks import infer, prepare
+from src.utils.types import min_max_float
 
 VERSION = "0.0.1"
 
@@ -107,6 +108,17 @@ def run():
         type=int,
         default=0,
         help="Minimum MAPQ to retain an alignment (default: 0, no filtering). Cannot be used with --skip-sort-index",
+    )
+    prepare_parser.add_argument(
+        "--filter-threshold",
+        type=min_max_float(0.0, 1.0),
+        default=None,
+        help="Minimum modification certainty to retain a site in the pileup. If not set, modkit will automatically determine a threshold. See github.com/nanoporetech/modkit/blob/master/filtering.md for more details.",
+    )
+    prepare_parser.add_argument(
+        "--extract-reads",
+        action="store_true",
+        help="Whether to extract read-level features into a separate table.",
     )
     prepare_parser.add_argument(
         "--dry-run",
