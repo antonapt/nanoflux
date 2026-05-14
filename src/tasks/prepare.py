@@ -249,7 +249,9 @@ def main(args):
     output_dir = args.output.resolve()
 
     reference = Path(str(files("data") / "refs" / f"{args.ref}.fa"))
-    annotation = Path(str(files("data") / "features" / f"EPIC_{args.ref}.bed"))
+    annotation = Path(
+        str(files("data") / "features" / f"EPIC_{args.ref.strip('-as')}.bed")
+    )
 
     if not reference.exists():
         raise FileNotFoundError(f"Reference file not found at {reference}")
