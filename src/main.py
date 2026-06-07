@@ -6,6 +6,7 @@ import pathtype
 from rich_argparse import RichHelpFormatter
 
 from src.tasks import infer, prepare
+from src.utils.types import min_max_float
 
 VERSION = "0.0.1"
 
@@ -64,18 +65,60 @@ def run():
         help="Path to input SAM/BAM file",
     )
 
-    # optional args:
-    prepare_parser.add_argument(
-        "--ref",
-        type=pathtype.Path(exists=True, name_matches_re=r"\.fa$", readable=True),
-        required=False,
-        default=files("data") / "refs" / "chm13v2.fa",
-        help="Path to T2T CHM13v2.0 reference genome",
+    # mutually exclusive args (default handled if none passed):
+    reference = prepare_parser.add_mutually_exclusive_group(required=False)
+    reference.add_argument(
+        "--chm13v2",
+        action="store_const",
+        dest="ref",
+        const="chm13v2",
+        default="chm13v2",
+        help="Use T2T CHM13v2.0 reference and annotation. Cannot be used with --hg38. Overrides --ref and --anno if those are also passed.",
     )
+    reference.add_argument(
+        "--hg38",
+        action="store_const",
+        dest="ref",
+        const="hg38",
+        help="Use hg38 reference and annotation. Cannot be used with --chm13v2. Overrides --ref and --anno if those are also passed.",
+    )
+    reference.add_argument(
+        "--hg38-as",
+        action="store_const",
+        dest="ref",
+        const="hg38-as",
+        help="Use hg38 analysis set reference and annotation. Cannot be used with --chm13v2. Overrides --ref and --anno if those are also passed.",
+    )
+
+    # optional args:
     prepare_parser.add_argument(
         "--skip-alignment",
         action="store_true",
         help="Skip alignment if SAM/BAM is already aligned to T2T CHM13v2.0",
+    )
+
+    bam = prepare_parser.add_mutually_exclusive_group(required=False)
+    bam.add_argument(
+        "--skip-sort-index",
+        action="store_true",
+        help="Skip sorting and indexing if SAM/BAM is already sorted and indexed",
+    )
+    bam.add_argument(
+        "--min-mapq",
+        type=int,
+        default=0,
+        help="Minimum MAPQ to retain an alignment (default: 0, no filtering). Cannot be used with --skip-sort-index",
+    )
+    prepare_parser.add_argument(
+        "--filter-threshold",
+        type=min_max_float(0.0, 1.0),
+        default=None,
+        help="Minimum modification certainty to retain a site in the pileup. If not set, modkit will automatically determine a threshold. See github.com/nanoporetech/modkit/blob/master/filtering.md for more details.",
+    )
+    prepare_parser.add_argument(
+        "--extract-reads",
+        action="store_true",
+        help="Whether to extract read-level features into a separate table.",
     )
     prepare_parser.add_argument(
         "--dry-run",
@@ -163,6 +206,7 @@ def run():
     args = parser.parse_args(
         args=None if sys.argv[1:] else ["--help"]
     )  # display help if no subcommand is passed
+
     args.func(args)
 
 

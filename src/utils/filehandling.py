@@ -6,12 +6,15 @@ from pathlib import Path
 from src.utils.log import logger
 
 
-def prepare_location(path: Path, create: bool = False) -> None:
+def prepare_location(path: Path, create: bool = False, allow_overwrite=False) -> None:
     path = path.resolve()
     parent = path.parent
 
     if path.exists():
-        raise FileExistsError(f"Target already exists: {path}")
+        if not allow_overwrite:
+            raise FileExistsError(f"Target already exists: {path}")
+        else:
+            logger.debug(f"Overwriting existing file: {path}")
     elif not parent.exists():
         if create:
             logger.debug(f"Creating dir: {parent}")

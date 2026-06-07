@@ -19,6 +19,7 @@ def minimap2_align(
     threads: int,
     dry_run: bool = False,
 ) -> tuple[int, str, str]:
+
     cmd_sam = [
         "samtools",
         "fastq",
@@ -50,6 +51,37 @@ def minimap2_align(
         out, err = mm2.communicate()
         sam.wait()
         return mm2.returncode, out, err
+    return 0, "", ""
+
+
+@with_tmpfile
+def samtools_filter(
+    *,
+    input_path: Path,
+    output_path: Path,
+    threads: int,
+    min_mapq: int = 0,  # mapq > 0 discards multimapped reads
+    dry_run: bool = False,
+) -> tuple[int, str, str]:
+
+    cmd = [
+        "samtools",
+        "view",
+        "-b",
+        "-o",
+        str(output_path),
+        "-@",
+        str(threads),
+        "-q",
+        str(min_mapq),
+        str(input_path),
+    ]
+    logger.info("Running [green bold]samtools view[/] (mapq filtering)")
+    logger.debug(f"Running command: {' '.join(cmd)}")
+
+    if not dry_run:
+        proc = run(cmd, capture_output=True, text=True)
+        return proc.returncode, proc.stdout, proc.stderr
     return 0, "", ""
 
 
@@ -267,6 +299,7 @@ def modkit_pileup(
     output_path: Path,
     reference: Path,
     threads: int,
+    filter_threshold: float | None = None,
     dry_run: bool = False,
 ) -> tuple[int, str, str]:
     cmd = [
@@ -283,7 +316,51 @@ def modkit_pileup(
         "--suppress-progress",  # prevent huge stdout
         # "--log-file" # TODO: add a path to this
     ]
+
+    if filter_threshold is not None:
+        cmd.append("--filter-threshold")
+        cmd.append(str(filter_threshold))
+
     logger.info("Running [green bold]modkit pileup[/]")
+    logger.debug(f"Running command: {' '.join(cmd)}")
+
+    if not dry_run:
+        proc = run(cmd, capture_output=True, text=True)
+        return proc.returncode, proc.stdout, proc.stderr
+    return 0, "", ""
+
+
+@with_tmpfile
+def modkit_extract(
+    *,
+    input_path: Path,
+    output_path: Path,
+    reference: Path,
+    threads: int,
+    dry_run: bool = False,
+) -> tuple[int, str, str]:
+    cmd = [
+        "modkit",
+        "extract",
+        str(input_path),
+        "null",  # modkit requires an output path but we will ignore it since we only want the read-level features
+        "--read-calls-path",
+        str(output_path),
+        "-t",
+        str(threads),
+        "--mapped-only",
+        "--cpg",
+        "--no-filtering",
+        "--ignore",
+        "h",
+        "--ignore-implicit",
+        "--ref",
+        str(reference),
+        "--suppress-progress",  # prevent huge stdout
+        # "--log-file" # TODO: add a path to this
+    ]
+
+    logger.info("Running [green bold]modkit extract[/]")
     logger.debug(f"Running command: {' '.join(cmd)}")
 
     if not dry_run:
@@ -324,67 +401,96 @@ def main(args):
     if args.debug or args.dry_run:
         logger.setLevel(logging.DEBUG)
 
-    logger.info("Running [blue bold]nanoflux prepare[/]")
-
     input_file = args.input.resolve()
     output_dir = args.output.resolve()
-    reference = args.ref.resolve()
 
-    anno_file = files("data") / "features" / "mapping_EPIC.bed"
+    reference = Path(str(files("data") / "refs" / f"{args.ref}.fa"))
+    annotation = Path(
+        str(files("data") / "features" / f"EPIC_{args.ref.strip('-as')}.bed")
+    )
 
-    methyl_file = output_dir / "methylation.bed"
-    prepare_location(methyl_file, args.create_dir)
+    if not reference.exists():
+        raise FileNotFoundError(f"Reference file not found at {reference}")
 
-    with tempfile.TemporaryDirectory(prefix="nanoflux_prepare_") as tmpdir:
-        work_dir = Path(tmpdir)
+    logger.info("Running [blue bold]nanoflux prepare[/]")
 
-        if not args.skip_alignment:
-            output_file = work_dir / "aligned_to_CHM13v2.sam"
-            minimap2_align(
+    if not args.skip_alignment:
+        output_file = output_dir / f"aligned_to_{args.ref}.sam"
+        minimap2_align(
+            input_path=input_file,
+            output_path=output_file,
+            reference=reference,
+            threads=args.threads,
+            dry_run=args.dry_run,
+        )
+        input_file = output_file
+
+    if args.read_filter_list:
+        filter_list = Path(args.read_filter_list).resolve()
+        filtered_bam = output_dir / f"aligned_to_{args.ref}_and_filtered_reads.bam"
+        samtools_filter_ids(
+            input_path=input_file,
+            output_path=filtered_bam,
+            read_list=filter_list,
+            threads=args.threads,
+            dry_run=args.dry_run,
+        )
+        input_file = filtered_bam
+    elif args.read_filter_feather:
+        read_name_col, score_col, cpg_col = args.feather_cols
+        read_names = get_readnames_from_feather(
+            feather_path=Path(args.read_filter_feather).resolve(),
+            short_read_min_covered_cpgs=args.short_read_min_covered_cpgs,
+            non_tumor_score_threshold=args.non_tumor_score_threshold,
+            score_filter_min_cpgs=args.score_filter_min_cpgs,
+            thresholds_file=args.thresholds_file,
+            quantile=args.quantile,
+            read_name_col=read_name_col,
+            score_col=score_col,
+            cpg_col=cpg_col,
+        )
+        filtered_bam = output_dir / f"aligned_to_{args.ref}_and_filtered_reads.bam"
+        samtools_filter_ids_from_names(
+            input_path=input_file,
+            output_path=filtered_bam,
+            read_names=read_names,
+            threads=args.threads,
+            dry_run=args.dry_run,
+        )
+        input_file = filtered_bam
+
+    output_file = output_dir / f"aligned_to_{args.ref}.bam"
+    samtools_sort(
+        input_path=input_file,
+        output_path=output_file,
+        threads=args.threads,
+        dry_run=args.dry_run,
+    )
+    input_file = output_file
+
+    # if sort and index are skipped mapq filtering can not be applied. This gets checked in the parser
+    if not args.skip_sort_index:
+        filename = f"aligned_to_{args.ref}_q{args.min_mapq}.bam"
+
+        if args.min_mapq > 0:
+            prepare_location(output_dir / filename, args.create_dir)
+            samtools_filter(
                 input_path=input_file,
-                output_path=output_file,
-                reference=reference,
+                output_path=output_dir / filename,
                 threads=args.threads,
+                min_mapq=args.min_mapq,
                 dry_run=args.dry_run,
             )
-            input_file = output_file
-
-        if args.read_filter_list:
-            filter_list = Path(args.read_filter_list).resolve()
-            filtered_bam = work_dir / "aligned_to_CHM13v2_and_filtered_reads.bam"
-            samtools_filter_ids(
-                input_path=input_file,
-                output_path=filtered_bam,
-                read_list=filter_list,
-                threads=args.threads,
-                dry_run=args.dry_run,
+            input_file = output_dir / filename
+        elif args.min_mapq == 0:
+            logger.warning(
+                "[red bold]min_mapq is set to 0[/], which means multimapped reads will be included. This may lead to inaccurate methylation calls in repetitive regions."
             )
-            input_file = filtered_bam
 
-        elif args.read_filter_feather:
-            read_name_col, score_col, cpg_col = args.feather_cols
-            read_names = get_readnames_from_feather(
-                feather_path=Path(args.read_filter_feather).resolve(),
-                short_read_min_covered_cpgs=args.short_read_min_covered_cpgs,
-                non_tumor_score_threshold=args.non_tumor_score_threshold,
-                score_filter_min_cpgs=args.score_filter_min_cpgs,
-                thresholds_file=args.thresholds_file,
-                quantile=args.quantile,
-                read_name_col=read_name_col,
-                score_col=score_col,
-                cpg_col=cpg_col,
-            )
-            filtered_bam = work_dir / "aligned_to_CHM13v2_and_filtered_reads.bam"
-            samtools_filter_ids_from_names(
-                input_path=input_file,
-                output_path=filtered_bam,
-                read_names=read_names,
-                threads=args.threads,
-                dry_run=args.dry_run,
-            )
-            input_file = filtered_bam
-
-        output_file = work_dir / "aligned_to_CHM13v2.bam"
+        output_file = output_dir / filename
+        prepare_location(
+            output_file, args.create_dir, allow_overwrite=(args.min_mapq > 0)
+        )
         samtools_sort(
             input_path=input_file,
             output_path=output_file,
@@ -393,7 +499,8 @@ def main(args):
         )
         input_file = output_file
 
-        output_file = work_dir / "aligned_to_CHM13v2.bam.bai"
+        output_file = output_dir / f"{filename}.bai"
+        prepare_location(output_file, args.create_dir)
         samtools_index(
             input_path=input_file,
             output_path=output_file,
@@ -401,21 +508,37 @@ def main(args):
             dry_run=args.dry_run,
         )
 
-        pileup_file = work_dir / "pileup.bed"
-        modkit_pileup(
+    pileup_file = output_dir / "pileup.bed"
+    prepare_location(pileup_file, args.create_dir)
+    modkit_pileup(
+        input_path=input_file,
+        output_path=pileup_file,
+        reference=reference,
+        threads=args.threads,
+        filter_threshold=args.filter_threshold,
+        dry_run=args.dry_run,
+    )
+
+    if args.extract_reads:
+        reads_file = output_dir / "reads.tsv"
+        prepare_location(reads_file, args.create_dir)
+        modkit_extract(
             input_path=input_file,
-            output_path=pileup_file,
+            output_path=reads_file,
             reference=reference,
             threads=args.threads,
             dry_run=args.dry_run,
         )
 
-        bedtools_intersect(
-            input_path=pileup_file,
-            output_path=methyl_file,
-            anno_path=anno_file,  # type: ignore
-            dry_run=args.dry_run,
-        )
+    methyl_file = output_dir / "methylation.bed"
+    prepare_location(methyl_file, args.create_dir)
+    
+    bedtools_intersect(
+        input_path=pileup_file,
+        output_path=methyl_file,
+        anno_path=annotation,  # type: ignore
+        dry_run=args.dry_run,
+    )
 
     logger.info("[blue bold]nanoflux prepare[/] has successfully run!")
     logger.info(f"The intermediate file has been saved to: {methyl_file}")
