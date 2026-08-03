@@ -99,7 +99,7 @@ fi
 
 echo " -------- Model Download --------"
 if [ -f "data/download_models.py" ]; then
-    uv run --python "$CONDA_PYTHON" --no-project --with requests data/download_models.py
+    uv run --python "$CONDA_PYTHON" --no-project --with zenodo_get data/download_models.py
 else
     echo "Warning: download_models.py not found at data/."
 fi
