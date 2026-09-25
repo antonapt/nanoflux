@@ -5,7 +5,7 @@ from importlib.resources import files
 import pathtype
 from rich_argparse import RichHelpFormatter
 
-from src.tasks import infer, prepare
+from src.tasks import infer, prepare, score
 from src.utils.types import min_max_float
 
 VERSION = "0.0.1"
@@ -143,6 +143,118 @@ def run():
     )
 
     infer_parser.set_defaults(func=infer)
+
+    score_parser = subparsers.add_parser(
+        "score",
+        help="Score reads against a pooled CpG atlas and derive per-read weights",
+        formatter_class=parser.formatter_class,
+        parents=[common_parser],
+    )
+    score_parser.add_argument(
+        "-i",
+        "--input",
+        type=pathtype.Path(exists=True, readable=True),
+        required=True,
+        help="Per-read call table: modkit extract read-calls TSV (from prepare --extract-reads) or a nanopolish/f5c call-methylation TSV, aligned to the atlas genome build",
+    )
+    score_parser.add_argument(
+        "--format",
+        choices=["modkit", "nanopolish"],
+        default="modkit",
+        help="Format of the input call table (default: modkit)",
+    )
+    score_parser.add_argument(
+        "--atlas",
+        type=pathtype.Path(exists=True, readable=True),
+        required=True,
+        help="Feather file with one row per CpG: chromosome, 1-based plus-strand C position, pooled methylated count, pooled total count",
+    )
+    score_parser.add_argument(
+        "--atlas-columns",
+        nargs=4,
+        metavar=("CHROM", "POS", "METHYLATED", "TOTAL"),
+        default=["chrom_x", "start_genomic", "methylated_pooled", "total_pooled"],
+        help="Column names in the atlas (default: chrom_x start_genomic methylated_pooled total_pooled)",
+    )
+    score_parser.add_argument(
+        "--min-atlas-cov",
+        type=int,
+        default=1,
+        help="Ignore atlas sites with fewer pooled reads (default: 1)",
+    )
+    score_parser.add_argument(
+        "--tau",
+        type=float,
+        default=1.0,
+        help="Scale applied to log-likelihood ratios before the sigmoid (nanopolish format only)",
+    )
+    score_parser.add_argument(
+        "--prior",
+        nargs="+",
+        default=["auto"],
+        metavar="ALPHA_BETA",
+        help="Beta prior for the atlas counts, p = (m + alpha) / (n + alpha + beta): 'auto' fits alpha and beta to the well-covered atlas sites (default), or pass two numbers, e.g. --prior 1 1",
+    )
+    score_parser.add_argument(
+        "--prior-min-cov",
+        type=int,
+        default=100,
+        help="Minimum pooled coverage of the atlas sites used to fit the automatic prior (default: 100)",
+    )
+    score_parser.add_argument(
+        "--moments",
+        type=pathtype.Path(exists=True, readable=True),
+        default=None,
+        help="moments.json from a previous run, to reuse the caller moments across a cohort. If omitted they are fitted on this sample",
+    )
+    score_parser.add_argument(
+        "--calibration",
+        type=pathtype.Path(exists=True, readable=True),
+        default=None,
+        help="calibration.json: use a calibration table instead of the Beta prior. Must have been fitted on reads that are not part of the atlas",
+    )
+    score_parser.add_argument(
+        "--fit-calibration",
+        action="store_true",
+        help="Fit a calibration table on this sample (which must not be part of the atlas) and score with it; writes calibration.json",
+    )
+    score_parser.add_argument(
+        "--weight-mode",
+        choices=["soft", "hard"],
+        default="soft",
+        help="soft: sigmoid weight around the per-bin cutoff; hard: 1 below the cutoff, --weight-min above",
+    )
+    score_parser.add_argument(
+        "--weight-quantile",
+        type=float,
+        default=0.05,
+        help="Per-bin cutoff = this quantile of z in the sample (default: 0.05). Ignored with --weight-thresholds",
+    )
+    score_parser.add_argument(
+        "--weight-thresholds",
+        type=str,
+        default=None,
+        help="Explicit per-bin z cutoffs, e.g. '1:-3,2:-3.8,3-4:-4.6,5-9:-5.8,10+:-8'",
+    )
+    score_parser.add_argument(
+        "--weight-temperature",
+        type=float,
+        default=1.0,
+        help="Softness of the weight: scale = temperature * (median z - cutoff) per bin; 0 equals hard mode (default: 1.0)",
+    )
+    score_parser.add_argument(
+        "--weight-min",
+        type=float,
+        default=0.0,
+        help="Weight floor for reads that look like the atlas (default: 0.0)",
+    )
+    score_parser.add_argument(
+        "--chunksize",
+        type=int,
+        default=2_000_000,
+        help="Rows of the call table processed at once (default: 2000000)",
+    )
+    score_parser.set_defaults(func=score)
 
     args = parser.parse_args(
         args=None if sys.argv[1:] else ["--help"]

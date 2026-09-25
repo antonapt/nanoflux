@@ -1,4 +1,27 @@
-from .infer import main as infer
-from .prepare import main as prepare
+"""Subcommand entry points.
 
-__all__ = ["infer", "prepare"]
+Each task is imported only when it runs, so ``nanoflux prepare`` and
+``nanoflux score`` work on machines without the inference dependencies
+(liblinear), and ``nanoflux infer`` without the alignment tools.
+"""
+
+
+def infer(args):
+    from .infer import main
+
+    return main(args)
+
+
+def prepare(args):
+    from .prepare import main
+
+    return main(args)
+
+
+def score(args):
+    from .score import main
+
+    return main(args)
+
+
+__all__ = ["infer", "prepare", "score"]

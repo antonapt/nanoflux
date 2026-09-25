@@ -78,6 +78,27 @@ The inference will:
 - Output predictions and probability scores to the specified `output_directory`
 - The `-c` flag indicates that output directories will be created if they do not exist
 
+### 4. ⚖️ Score reads against a pooled CpG atlas (optional)
+
+`nanoflux score` compares every read with a pooled reference of control samples and turns the result into a per-read weight: reads that look like the reference get a low weight, reads that do not get a high weight. Weights are keyed by read name, so they can be computed on one alignment (the atlas genome build, hg38) and applied to another.
+
+Input is a per-read call table aligned to the atlas build, either the `reads.tsv` written by `nanoflux prepare --extract-reads` (modkit) or a nanopolish/f5c `call-methylation` table (`--format nanopolish`). The atlas is a feather file with one row per CpG: chromosome, 1-based plus-strand C position, pooled methylated count and pooled total count.
+
+```bash
+nanoflux score -i "$reads_tsv" --atlas "$atlas_feather" -o "$output_directory" -c
+```
+
+Shallow atlas sites are read with a credibility weight: a Beta prior `p = (m + alpha) / (n + alpha + beta)` pools the real reads with `alpha` methylated and `beta` unmethylated pseudo-reads. By default `alpha` and `beta` are fitted to the well-covered sites of the atlas (`--prior auto`); pass two numbers (`--prior 1 1`) to set them by hand. The caller's behaviour at methylated and unmethylated sites (four moments) is fitted on the sample; reuse one `moments.json` across a cohort with `--moments`.
+
+Outputs in `output_directory`:
+- `read_scores.parquet`: one row per read with `n_cpg` (atlas CpGs on the read), `n_bin`, `z`, `llr_per_call` and `weight`
+- `moments.json`: the prior and the fitted caller moments
+- `score_summary.json`: counts, per-bin cutoffs and z quantiles
+
+An optional calibration table (`--fit-calibration`, then `--calibration calibration.json`) replaces the prior with an empirical lookup per atlas fraction and coverage. It must be fitted on reads that are not part of the atlas, otherwise the correction cancels out.
+
+Weights follow `w = w_min + (1 - w_min) * sigmoid((cutoff - z) / scale)` per CpG-count bin. `--weight-mode hard` gives 1 below the cutoff and `--weight-min` above. Cutoffs come from `--weight-quantile` of the sample's own z (default 0.05) or, preferably for a cohort, fixed per-bin values via `--weight-thresholds '1:-3,2:-3.8,3-4:-4.6,5-9:-5.8,10+:-8'` taken from the controls. `--weight-temperature` sets the softness (0 equals hard mode).
+
 ## 🧪 Development
 
 Run tests to verify dependencies:
