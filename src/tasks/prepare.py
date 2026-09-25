@@ -1,3 +1,4 @@
+import json
 import logging
 from importlib.resources import files
 from pathlib import Path
@@ -310,18 +311,23 @@ def main(args):
             dry_run=args.dry_run,
         )
 
-    pileup_file = output_dir / "pileup.bed"
-    prepare_location(pileup_file, args.create_dir)
-    modkit_pileup(
-        input_path=input_file,
-        output_path=pileup_file,
-        reference=reference,
-        threads=args.threads,
-        filter_threshold=args.filter_threshold,
-        dry_run=args.dry_run,
-    )
+    read_weights = getattr(args, "read_weights", None)
+    methyl_file = output_dir / "methylation.bed"
+    prepare_location(methyl_file, args.create_dir)
 
-    if args.extract_reads:
+    if read_weights is None:
+        pileup_file = output_dir / "pileup.bed"
+        prepare_location(pileup_file, args.create_dir)
+        modkit_pileup(
+            input_path=input_file,
+            output_path=pileup_file,
+            reference=reference,
+            threads=args.threads,
+            filter_threshold=args.filter_threshold,
+            dry_run=args.dry_run,
+        )
+
+    if args.extract_reads or read_weights is not None:
         reads_file = output_dir / "reads.tsv"
         prepare_location(reads_file, args.create_dir)
         modkit_extract(
@@ -332,14 +338,28 @@ def main(args):
             dry_run=args.dry_run,
         )
 
-    methyl_file = output_dir / "methylation.bed"
-    prepare_location(methyl_file, args.create_dir)
-    bedtools_intersect(
-        input_path=pileup_file,
-        output_path=methyl_file,
-        anno_path=annotation,  # type: ignore
-        dry_run=args.dry_run,
-    )
+    if read_weights is None:
+        bedtools_intersect(
+            input_path=pileup_file,
+            output_path=methyl_file,
+            anno_path=annotation,  # type: ignore
+            dry_run=args.dry_run,
+        )
+    else:
+        # weighted pileup from the extracted read calls replaces modkit pileup + bedtools
+        from src.scoring.pileup import load_weights, weighted_pileup
+
+        logger.info(f"Running [green bold]weighted pileup[/] with read weights from {read_weights}")
+        if not args.dry_run:
+            stats = weighted_pileup(
+                reads_file,
+                annotation,
+                load_weights(Path(read_weights).resolve()),
+                methyl_file,
+                filter_threshold=args.filter_threshold,
+                unscored_weight=args.unscored_weight,
+            )
+            (output_dir / "weighted_pileup_info.json").write_text(json.dumps(stats, indent=2))
 
     logger.info("[blue bold]nanoflux prepare[/] has successfully run!")
     logger.info(f"The intermediate file has been saved to: {methyl_file}")

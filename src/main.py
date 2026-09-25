@@ -121,6 +121,18 @@ def run():
         help="Whether to extract read-level features into a separate table.",
     )
     prepare_parser.add_argument(
+        "--read-weights",
+        type=pathtype.Path(exists=True, readable=True),
+        default=None,
+        help="read_scores.parquet from 'nanoflux score'. Builds the pileup from the extracted read calls with each read counted by its weight (restricted to the annotation sites) instead of running modkit pileup and bedtools; reads without a score get --unscored-weight",
+    )
+    prepare_parser.add_argument(
+        "--unscored-weight",
+        type=float,
+        default=1.0,
+        help="Weight of reads missing from --read-weights (default: 1.0)",
+    )
+    prepare_parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Perform a dry-run without actually processing or writing files",

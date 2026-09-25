@@ -97,6 +97,13 @@ Outputs in `output_directory`:
 
 An optional calibration table (`--fit-calibration`, then `--calibration calibration.json`) replaces the prior with an empirical lookup per atlas fraction and coverage. It must be fitted on reads that are not part of the atlas, otherwise the correction cancels out.
 
+To use the weights, run `prepare` as usual on the same sample with `--read-weights read_scores.parquet`. Prepare then builds the pileup itself from the extracted read calls, counting every read by its weight (restricted to the annotation sites, strands combined, calls below the pass threshold counted as failed), and writes `methylation.bed` in the layout `infer` expects. Weights are matched by read name, so the score can come from an hg38 alignment while prepare runs on chm13v2. Reads without a score get `--unscored-weight` (default 1). With all weights equal to 1 the percentages equal modkit's pileup.
+
+```bash
+nanoflux prepare -i "$input_file" -o "$output_directory" -c --read-weights "$scores_dir/read_scores.parquet"
+nanoflux infer -i "$output_directory/methylation.bed" -o "$results_dir" -c
+```
+
 Weights follow `w = w_min + (1 - w_min) * sigmoid((cutoff - z) / scale)` per CpG-count bin. `--weight-mode hard` gives 1 below the cutoff and `--weight-min` above. Cutoffs come from `--weight-quantile` of the sample's own z (default 0.05) or, preferably for a cohort, fixed per-bin values via `--weight-thresholds '1:-3,2:-3.8,3-4:-4.6,5-9:-5.8,10+:-8'` taken from the controls. `--weight-temperature` sets the softness (0 equals hard mode).
 
 ## 🧪 Development
