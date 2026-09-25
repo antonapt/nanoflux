@@ -88,12 +88,14 @@ Input is a per-read call table aligned to the atlas build, either the `reads.tsv
 nanoflux score -i "$reads_tsv" --atlas "$atlas_feather" -o "$output_directory" -c
 ```
 
-Shallow atlas sites are read with a credibility weight: a Beta prior `p = (m + alpha) / (n + alpha + beta)` pools the real reads with `alpha` methylated and `beta` unmethylated pseudo-reads. By default `alpha` and `beta` are fitted to the well-covered sites of the atlas (`--prior auto`); pass two numbers (`--prior 1 1`) to set them by hand. The caller's behaviour at methylated and unmethylated sites (four moments) is fitted on the sample; reuse one `moments.json` across a cohort with `--moments`.
+Shallow atlas sites are read with a credibility weight: a Beta prior `p = (m + alpha) / (n + alpha + beta)` pools the real reads with `alpha` methylated and `beta` unmethylated pseudo-reads. By default `alpha` and `beta` are fitted to the well-covered sites of the atlas (`--prior auto`); pass two numbers (`--prior 1 1`) to set them by hand.
+
+Two read scores are computed. `z` is the cross-entropy between the read's call probabilities and the atlas, centred and scaled by what a read that follows the atlas would score on the same CpGs; that expectation needs the *caller moments*, i.e. what the caller reports at truly methylated and truly unmethylated CpGs (mean and variance each). They describe the caller, not the sample, and ship with the package fitted on CSF control samples (`data/moments/csf_controls.json`). Use `--moments-from control1.tsv control2.tsv ...` to fit them on your own controls (pooled, only at atlas sites with `--moments-min-cov` pooled reads so that reads inside the atlas do not dominate), `--moments <file>` to reuse a fit, or `--moments fit` to fit on the scored sample itself (not recommended for tumour samples). `llr_per_call` is the log-likelihood of the read under the atlas against a flat model, per CpG; it needs no moments. `--weight-score` picks which one the weight is built from (default `z`).
 
 Outputs in `output_directory`:
 - `read_scores.parquet`: one row per read with `n_cpg` (atlas CpGs on the read), `n_bin`, `z`, `llr_per_call` and `weight`
-- `moments.json`: the prior and the fitted caller moments
-- `score_summary.json`: counts, per-bin cutoffs and z quantiles
+- `moments.json`: the prior and the caller moments used
+- `score_summary.json`: counts and per-bin score quantiles
 
 An optional calibration table (`--fit-calibration`, then `--calibration calibration.json`) replaces the prior with an empirical lookup per atlas fraction and coverage. It must be fitted on reads that are not part of the atlas, otherwise the correction cancels out.
 

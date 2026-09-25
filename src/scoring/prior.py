@@ -85,14 +85,30 @@ class Moments:
     n_calls: int
 
 
+TAIL_HI, TAIL_LO = 0.9, 0.1   # "near-certain" atlas sites used for the variances
+V_FLOOR = 0.002               # never claim a caller more precise than this
+
+
 class MomentStats:
-    """Normal equations of r ~ [1, p] and r^2 ~ [1, p]; additive over chunks."""
+    """Additive sufficient statistics for the caller moments.
+
+    The means come from the regression of r on [1, p] (``E[r | p]`` is linear
+    in p under the model). The variances from the matching regression of r^2
+    are fragile, because p is only an estimate of the true site probability;
+    instead they are measured directly at near-certain sites (p >= 0.9 for
+    v1, p <= 0.1 for v0), minus the small residual mixing term
+    ``p (1 - p) (mu1 - mu0)^2``, and floored at ``V_FLOOR``. Fit the
+    statistics only at atlas sites with high pooled coverage when the sample
+    is part of the atlas, so that its own reads do not dominate p.
+    """
 
     def __init__(self) -> None:
         self.A = np.zeros((2, 2))
         self.b1 = np.zeros(2)
         self.b2 = np.zeros(2)
         self.n = 0
+        self.hi = np.zeros(4)  # count, sum r, sum r^2, sum p(1-p)  at p >= TAIL_HI
+        self.lo = np.zeros(4)  # same at p <= TAIL_LO
 
     def add(self, p: np.ndarray, r: np.ndarray) -> None:
         p = np.asarray(p, dtype=np.float64)
@@ -102,28 +118,42 @@ class MomentStats:
         self.b1 += X.T @ r
         self.b2 += X.T @ (r * r)
         self.n += len(p)
+        for acc, sel in ((self.hi, p >= TAIL_HI), (self.lo, p <= TAIL_LO)):
+            rs, ps = r[sel], p[sel]
+            acc += (len(rs), rs.sum(), (rs * rs).sum(), (ps * (1 - ps)).sum())
 
-    def fit(self, *, min_calls: int = 100) -> Moments:
+    def __add__(self, other: "MomentStats") -> "MomentStats":
+        out = MomentStats()
+        out.A, out.b1, out.b2, out.n = self.A + other.A, self.b1 + other.b1, self.b2 + other.b2, self.n + other.n
+        out.hi, out.lo = self.hi + other.hi, self.lo + other.lo
+        return out
+
+    def fit(self, *, min_calls: int = 100, min_tail: int = 1000) -> Moments:
         if self.n < min_calls:
             raise ValueError(f"only {self.n} calls available for the moment fit")
         mu0, slope1 = np.linalg.solve(self.A, self.b1)
         M0, slope2 = np.linalg.solve(self.A, self.b2)
         mu1, M1 = mu0 + slope1, M0 + slope2
-        v1, v0 = M1 - mu1**2, M0 - mu0**2
-        if v1 < 0 or v0 < 0:
-            logger.warning(
-                f"Moment fit gave a negative variance (v1={v1:.4f}, v0={v0:.4f}); clipped to 0. "
-                "The atlas p is probably a poor predictor of the calls; consider --calibration."
-            )
-        return Moments(float(mu1), float(max(v1, 0.0)), float(mu0), float(max(v0, 0.0)), int(self.n))
+
+        def tail_var(acc: np.ndarray, fallback: float, label: str) -> float:
+            c, s1, s2, spq = acc
+            if c < min_tail:
+                logger.warning(f"only {int(c)} calls at {label} atlas sites; variance from the regression")
+                return fallback
+            return s2 / c - (s1 / c) ** 2 - spq / c * (mu1 - mu0) ** 2
+
+        v1 = tail_var(self.hi, M1 - mu1**2, f"p >= {TAIL_HI}")
+        v0 = tail_var(self.lo, M0 - mu0**2, f"p <= {TAIL_LO}")
+        return Moments(float(mu1), float(max(v1, V_FLOOR)), float(mu0), float(max(v0, V_FLOOR)), int(self.n))
 
 
 class PriorModel:
     """``expected(m, n) -> (p, e_r, v_r)`` from a Beta prior and caller moments."""
 
-    def __init__(self, prior: BetaPrior, moments: Moments) -> None:
+    def __init__(self, prior: BetaPrior, moments: Moments, info: dict | None = None) -> None:
         self.prior = prior
         self.moments = moments
+        self.info = info or {}
 
     def expected(self, m: np.ndarray, n: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         p = self.prior.p(m, n)
@@ -133,11 +163,11 @@ class PriorModel:
         return p, e_r, np.maximum(v_r, 0.0)
 
     def to_dict(self) -> dict:
-        return {"prior": asdict(self.prior), "moments": asdict(self.moments)}
+        return {"prior": asdict(self.prior), "moments": asdict(self.moments), "info": self.info}
 
     @classmethod
     def from_dict(cls, d: dict) -> "PriorModel":
-        return cls(BetaPrior(**d["prior"]), Moments(**d["moments"]))
+        return cls(BetaPrior(**d["prior"]), Moments(**d["moments"]), d.get("info"))
 
     def save(self, path: str | Path) -> None:
         Path(path).write_text(json.dumps(self.to_dict(), indent=2))

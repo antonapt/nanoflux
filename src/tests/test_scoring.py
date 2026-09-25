@@ -155,23 +155,40 @@ def test_fit_beta_prior_lowers_coverage_when_sparse():
 
 def test_moment_fit_recovers_class_moments(tmp_path):
     rng = np.random.default_rng(5)
-    p = rng.random(50000)
-    state = rng.random(50000) < p
-    r = np.where(state, rng.normal(0.85, 0.05, 50000), rng.normal(0.15, 0.05, 50000))
-    stats = MomentStats()
-    stats.add(p[:25000], r[:25000])
-    stats.add(p[25000:], r[25000:])
-    mo = stats.fit()
+    n = 200000
+    p = rng.random(n)
+    state = rng.random(n) < p
+    r = np.where(state, rng.normal(0.85, 0.05, n), rng.normal(0.15, 0.10, n))
+    a, b = MomentStats(), MomentStats()
+    a.add(p[: n // 2], r[: n // 2])
+    b.add(p[n // 2:], r[n // 2:])
+    mo = (a + b).fit()
     assert mo.mu1 == pytest.approx(0.85, abs=0.02) and mo.mu0 == pytest.approx(0.15, abs=0.02)
-    # the variances are second-moment differences and inherit the error of mu, so only loosely
-    assert 0 <= mo.v1 < 0.02 and 0 <= mo.v0 < 0.02 and mo.n_calls == 50000
+    # variances come from the near-certain sites: 0.05^2 and 0.10^2
+    assert mo.v1 == pytest.approx(0.0025, rel=0.3) and mo.v0 == pytest.approx(0.01, rel=0.3)
+    assert mo.n_calls == n
 
-    model = PriorModel(BetaPrior(1.0, 1.0), mo)
+    # too few tail calls -> regression fallback, floored at V_FLOOR
+    small = MomentStats()
+    small.add(p[:500], r[:500])
+    ms = small.fit(min_tail=1000)
+    assert ms.v1 >= 0.002 and ms.v0 >= 0.002
+
+    model = PriorModel(BetaPrior(1.0, 1.0), mo, {"description": "test"})
     pp, e_r, v_r = model.expected(np.array([9, 0]), np.array([10, 10]))
     assert pp.tolist() == pytest.approx([10 / 12, 1 / 12])
     assert e_r[0] > e_r[1] and (v_r >= 0).all()
     model.save(tmp_path / "m.json")
     assert PriorModel.load(tmp_path / "m.json").to_dict() == model.to_dict()
+
+
+def test_default_moments_file_ships_with_the_package():
+    from src.tasks.score import default_moments_path
+
+    model = PriorModel.load(default_moments_path())
+    assert 0.8 < model.moments.mu1 < 1.0 and 0.0 < model.moments.mu0 < 0.2
+    assert model.moments.v1 > 0 and model.moments.v0 > 0
+    assert "description" in model.info
 
 
 def test_parse_prior():
@@ -247,9 +264,10 @@ def test_score_command_end_to_end(tmp_path):
         input=tmp_path / "calls.tsv", output=tmp_path / "out", create_dir=True, debug=False,
         format="modkit", atlas=tmp_path / "atlas.feather",
         atlas_columns=["chrom_x", "start_genomic", "methylated_pooled", "total_pooled"],
-        min_atlas_cov=1, tau=1.0, prior=["auto"], prior_min_cov=20, moments=None,
-        calibration=None, fit_calibration=False, weight_mode="sigmoid", weight_center=0.0,
-        weight_thresholds=None, weight_temperature=1.0, weight_min=0.0, chunksize=1000,
+        min_atlas_cov=1, tau=1.0, prior=["auto"], prior_min_cov=20, moments="fit",
+        moments_from=None, moments_min_cov=1, calibration=None, fit_calibration=False,
+        weight_score="z", weight_mode="sigmoid", weight_center=None, weight_thresholds=None,
+        weight_temperature=None, weight_min=0.0, chunksize=1000,
     )
     score_main(args)
 
@@ -263,13 +281,36 @@ def test_score_command_end_to_end(tmp_path):
     assert not (tmp_path / "out" / "calibration.json").exists()
     summary = pd.read_json(tmp_path / "out" / "score_summary.json", typ="series")
     assert summary["site_model"] == "beta prior + moments"
+    assert summary["weight"]["score"] == "z" and summary["weight"]["temperature"] == 1.0
 
     # reusing the moments file reproduces the scores
     args2 = Namespace(**{**vars(args), "output": tmp_path / "out2",
-                         "moments": tmp_path / "out" / "moments.json"})
+                         "moments": str(tmp_path / "out" / "moments.json")})
     score_main(args2)
     out2 = pd.read_parquet(tmp_path / "out2" / "read_scores.parquet")
     assert np.allclose(out["z"].to_numpy(), out2["z"].to_numpy(), equal_nan=True)
+
+    # moments fitted on other files (here: the same file twice) give the same means
+    args_from = Namespace(**{**vars(args), "output": tmp_path / "out_from", "moments": None,
+                             "moments_from": [tmp_path / "calls.tsv", tmp_path / "calls.tsv"]})
+    score_main(args_from)
+    m_self = PriorModel.load(tmp_path / "out" / "moments.json").moments
+    m_from = PriorModel.load(tmp_path / "out_from" / "moments.json").moments
+    assert m_from.mu1 == pytest.approx(m_self.mu1) and m_from.n_calls == 2 * m_self.n_calls
+
+    # the shipped default moments work without any fitting
+    args_default = Namespace(**{**vars(args), "output": tmp_path / "out_default", "moments": None})
+    score_main(args_default)
+    assert pd.read_parquet(tmp_path / "out_default" / "read_scores.parquet")["weight"].between(0, 1).all()
+
+    # weights from the moment-free score
+    args_llr = Namespace(**{**vars(args), "output": tmp_path / "out_llr", "weight_score": "llr_per_call"})
+    score_main(args_llr)
+    out_llr = pd.read_parquet(tmp_path / "out_llr" / "read_scores.parquet")
+    assert np.allclose(out_llr["llr_per_call"].to_numpy(), out["llr_per_call"].to_numpy())
+    assert out_llr.loc[flipped, "weight"].mean() > out_llr.loc[~flipped, "weight"].mean()
+    s_llr = pd.read_json(tmp_path / "out_llr" / "score_summary.json", typ="series")
+    assert s_llr["weight"]["temperature"] == 0.25
 
     # an explicit prior and explicit thresholds
     args3 = Namespace(**{**vars(args), "output": tmp_path / "out3", "prior": ["1", "1"],

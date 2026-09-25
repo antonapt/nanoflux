@@ -1,0 +1,19 @@
+{
+  "prior": {
+    "alpha": 1.4493197674922385,
+    "beta": 0.6819382315818652
+  },
+  "moments": {
+    "mu1": 0.9305046573021242,
+    "v1": 0.005976302585275525,
+    "mu0": 0.06320268907245506,
+    "v0": 0.002,
+    "n_calls": 290917
+  },
+  "info": {
+    "description": "caller moments fitted on the CSF cfDNA control samples s_6, s_7, s_8 (dorado 5mCG_5hmCG, modkit extract, hg38) against the pooled CSF control atlas, using only atlas sites with >= 50 pooled reads because these controls are part of the atlas",
+    "prior_source": "fitted on atlas sites with coverage >= 100",
+    "moments_source": "nanoflux score --moments-from s_6/extracted.tsv s_7/extracted.tsv s_8/extracted.tsv --moments-min-cov 50",
+    "meaning": "mu1/v1: mean and variance of the read's methylation probability at truly methylated CpGs; mu0/v0: the same at truly unmethylated CpGs. v0 sits at the floor of 0.002."
+  }
+}

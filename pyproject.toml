@@ -27,6 +27,7 @@ include = ["src*", "data*"]
 data = [
     "features/*.csv",
     "features/*.bed",
+    "moments/*.json",
     "models/*.model",
     "models/*.onehot",
     "models/*.features",

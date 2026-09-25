@@ -215,9 +215,29 @@ def run():
     )
     score_parser.add_argument(
         "--moments",
+        type=str,
+        default=None,
+        help="Caller moments (what the caller reports at truly methylated / unmethylated CpGs): a moments.json from a previous run, or 'fit' to fit them on this sample. Default: the moments shipped with the package, fitted on CSF control samples",
+    )
+    score_parser.add_argument(
+        "--moments-from",
+        nargs="+",
         type=pathtype.Path(exists=True, readable=True),
         default=None,
-        help="moments.json from a previous run, to reuse the caller moments across a cohort. If omitted they are fitted on this sample",
+        metavar="CALLS_TSV",
+        help="Fit the caller moments on these read tables (pooled, e.g. the control samples) instead of using --moments; the result is written to moments.json and used for scoring",
+    )
+    score_parser.add_argument(
+        "--moments-min-cov",
+        type=int,
+        default=50,
+        help="Only atlas sites with at least this pooled coverage enter the moment fit, so that reads that are part of the atlas do not dominate the site probability (default: 50)",
+    )
+    score_parser.add_argument(
+        "--weight-score",
+        choices=["z", "llr_per_call"],
+        default="z",
+        help="Score the weight is built from: z (cross-entropy centred and scaled by what an atlas-like read would score, needs the caller moments) or llr_per_call (log-likelihood of the read under the atlas vs a flat model, per CpG; needs no moments). Default: z",
     )
     score_parser.add_argument(
         "--calibration",
@@ -239,14 +259,14 @@ def run():
     score_parser.add_argument(
         "--weight-center",
         type=float,
-        default=0.0,
-        help="z at which the sigmoid weight is halfway between --weight-min and 1 (default: 0, a read that fits the atlas)",
+        default=None,
+        help="Score value at which the sigmoid weight is halfway between --weight-min and 1 (default: 0 for both scores, a read that fits the atlas)",
     )
     score_parser.add_argument(
         "--weight-temperature",
         type=float,
-        default=1.0,
-        help="Width of the sigmoid in z units; smaller sharpens the contrast between atlas-like and unlike reads (default: 1.0)",
+        default=None,
+        help="Width of the sigmoid in score units; smaller sharpens the contrast between atlas-like and unlike reads (default: 1.0 for z, 0.25 for llr_per_call)",
     )
     score_parser.add_argument(
         "--weight-min",
