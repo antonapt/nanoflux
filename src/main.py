@@ -232,33 +232,33 @@ def run():
     )
     score_parser.add_argument(
         "--weight-mode",
-        choices=["soft", "hard"],
-        default="soft",
-        help="soft: sigmoid weight around the per-bin cutoff; hard: 1 below the cutoff, --weight-min above",
+        choices=["sigmoid", "hard"],
+        default="sigmoid",
+        help="sigmoid (default): w = sigmoid((center - z) / temperature), a smooth decreasing function of z with no data-derived cutoff; hard: 1 below the per-bin threshold from --weight-thresholds, --weight-min above",
     )
     score_parser.add_argument(
-        "--weight-quantile",
+        "--weight-center",
         type=float,
-        default=0.05,
-        help="Per-bin cutoff = this quantile of z in the sample (default: 0.05). Ignored with --weight-thresholds",
-    )
-    score_parser.add_argument(
-        "--weight-thresholds",
-        type=str,
-        default=None,
-        help="Explicit per-bin z cutoffs, e.g. '1:-3,2:-3.8,3-4:-4.6,5-9:-5.8,10+:-8'",
+        default=0.0,
+        help="z at which the sigmoid weight is halfway between --weight-min and 1 (default: 0, a read that fits the atlas)",
     )
     score_parser.add_argument(
         "--weight-temperature",
         type=float,
         default=1.0,
-        help="Softness of the weight: scale = temperature * (median z - cutoff) per bin; 0 equals hard mode (default: 1.0)",
+        help="Width of the sigmoid in z units; smaller sharpens the contrast between atlas-like and unlike reads (default: 1.0)",
     )
     score_parser.add_argument(
         "--weight-min",
         type=float,
         default=0.0,
-        help="Weight floor for reads that look like the atlas (default: 0.0)",
+        help="Weight floor so that atlas-like reads never vanish completely (default: 0.0)",
+    )
+    score_parser.add_argument(
+        "--weight-thresholds",
+        type=str,
+        default=None,
+        help="Per-bin z thresholds for --weight-mode hard, e.g. '1:-3,2:-3.8,3-4:-4.6,5-9:-5.8,10+:-8'",
     )
     score_parser.add_argument(
         "--chunksize",

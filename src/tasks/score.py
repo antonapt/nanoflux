@@ -17,7 +17,7 @@ from src.scoring.calibration import Calibration
 from src.scoring.calls import FORMATS
 from src.scoring.prior import BetaPrior, MomentStats, PriorModel, fit_beta_prior
 from src.scoring.scores import finalize_reads, score_calls
-from src.scoring.weights import N_BIN_LABELS, bin_quantiles, compute_weights, parse_thresholds
+from src.scoring.weights import N_BIN_LABELS, compute_weights, parse_thresholds
 from src.utils.filehandling import prepare_location
 from src.utils.log import logger
 
@@ -104,7 +104,7 @@ def build_site_model(args, atlas: Atlas, output_dir: Path, iterate) -> tuple[obj
     return model, info
 
 
-def summarize_bins(reads: pd.DataFrame, cutoffs: dict, medians: dict) -> list[dict]:
+def summarize_bins(reads: pd.DataFrame) -> list[dict]:
     rows = []
     for b in N_BIN_LABELS:
         sel = reads["n_bin"].astype(str) == b
@@ -113,8 +113,7 @@ def summarize_bins(reads: pd.DataFrame, cutoffs: dict, medians: dict) -> list[di
         rows.append({
             "n_bin": b,
             "n_reads": int(sel.sum()),
-            "cutoff": cutoffs[b],
-            "median_z": medians[b],
+            "median_z": float(z.median()) if len(z) else np.nan,
             "z_q01": float(z.quantile(0.01)) if len(z) else np.nan,
             "z_q05": float(z.quantile(0.05)) if len(z) else np.nan,
             "z_sd": float(z.std()) if len(z) else np.nan,
@@ -158,38 +157,36 @@ def main(args):
     )
     logger.info(f"Scored {len(reads):,} of {len(seen):,} reads (the rest have no atlas CpG)")
 
-    # ---- weights ----
+    # ---- weights: a plain function of z, no data-derived cutoffs ----
     z, n_bin = reads["z"].to_numpy(), reads["n_bin"]
-    medians = bin_quantiles(z, n_bin, 0.5)
-    if args.weight_thresholds:
-        cutoffs = parse_thresholds(args.weight_thresholds)
-        cutoff_source = "explicit"
-    else:
-        cutoffs = bin_quantiles(z, n_bin, args.weight_quantile)
-        cutoff_source = f"sample quantile {args.weight_quantile}"
-    reads["weight"] = compute_weights(z, n_bin, cutoffs, medians, mode=args.weight_mode,
-                                      temperature=args.weight_temperature, w_min=args.weight_min)
+    thresholds = parse_thresholds(args.weight_thresholds) if args.weight_thresholds else None
+    if args.weight_mode == "hard" and thresholds is None:
+        raise SystemExit("--weight-mode hard needs --weight-thresholds")
+    reads["weight"] = compute_weights(z, n_bin, mode=args.weight_mode, center=args.weight_center,
+                                      temperature=args.weight_temperature, w_min=args.weight_min,
+                                      thresholds=thresholds)
 
     out = reads.reset_index()
     out["n_bin"] = out["n_bin"].astype(str)
     pq.write_table(pa.Table.from_pandas(out[OUTPUT_COLUMNS], preserve_index=False),
                    out_scores, compression="zstd")
 
-    bins = summarize_bins(reads, cutoffs, medians)
+    bins = summarize_bins(reads)
     summary = {
         "input": str(input_file), "format": fmt, "atlas": str(Path(args.atlas).resolve()),
         "atlas_info": atlas.describe(), "tau": tau, **model_info,
-        "weight": {"mode": args.weight_mode, "cutoff_source": cutoff_source,
-                   "temperature": args.weight_temperature, "w_min": args.weight_min},
+        "weight": {"mode": args.weight_mode, "center": args.weight_center,
+                   "temperature": args.weight_temperature, "w_min": args.weight_min,
+                   "thresholds": thresholds},
         "counts": dict(totals), "n_reads_in_file": len(seen), "n_reads_scored": int(len(reads)),
         "bins": bins,
     }
     out_summary.write_text(json.dumps(summary, indent=2, default=str))
 
-    logger.info("Per CpG-count bin: reads, cutoff, median z, 1% z, z SD, mean weight")
+    logger.info("Per CpG-count bin: reads, median z, 5% z, 1% z, z SD, mean weight")
     for row in bins:
-        logger.info(f"  {row['n_bin']:>4}: {row['n_reads']:>9,}  cutoff {row['cutoff']:6.2f}  "
-                    f"median {row['median_z']:5.2f}  q01 {row['z_q01']:6.2f}  sd {row['z_sd']:4.2f}  "
+        logger.info(f"  {row['n_bin']:>4}: {row['n_reads']:>9,}  median {row['median_z']:5.2f}  "
+                    f"q05 {row['z_q05']:6.2f}  q01 {row['z_q01']:6.2f}  sd {row['z_sd']:4.2f}  "
                     f"weight {row['mean_weight']:.3f}")
     logger.info("[blue bold]nanoflux score[/] has successfully run!")
     logger.info(f"Per-read scores saved to: {out_scores}")

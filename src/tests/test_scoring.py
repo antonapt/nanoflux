@@ -192,20 +192,25 @@ def test_parse_thresholds():
         parse_thresholds("1:-3,2:-3,3-4:-3,5-9:-3,11:-3")
 
 
-def test_weights_soft_and_hard():
-    z = np.array([-10.0, -3.0, 0.5, 2.0, np.nan])
-    n_bin = ["1"] * 5
-    cutoffs, medians = {b: -3.0 for b in N_BIN_LABELS}, {b: 0.5 for b in N_BIN_LABELS}
-    soft = compute_weights(z, n_bin, cutoffs, medians, mode="soft", temperature=1.0, w_min=0.1)
-    scale = 0.5 - (-3.0)                                       # median - cutoff
-    assert soft[0] == pytest.approx(0.1 + 0.9 / (1 + np.exp(-7.0 / scale)))  # two scales past cutoff
-    assert soft[1] == pytest.approx(0.55)                      # cutoff: midway between floor and 1
-    assert soft[2] == pytest.approx(0.1 + 0.9 / (1 + np.e))   # median: sigmoid(-1)
-    assert soft[0] > soft[1] > soft[2] > soft[3] and np.isnan(soft[4])
-    hard = compute_weights(z, n_bin, cutoffs, medians, mode="hard", w_min=0.0)
+def test_weights_sigmoid_and_hard():
+    z = np.array([-10.0, -2.0, 0.0, 2.0, np.nan])
+    sig = compute_weights(z, mode="sigmoid", center=0.0, temperature=1.0, w_min=0.1)
+    assert sig[0] == pytest.approx(1.0, abs=1e-3)
+    assert sig[1] == pytest.approx(0.1 + 0.9 / (1 + np.exp(-2)))
+    assert sig[2] == pytest.approx(0.55)                       # at the center: halfway between floor and 1
+    assert sig[0] > sig[1] > sig[2] > sig[3] and np.isnan(sig[4])
+    sharper = compute_weights(z, mode="sigmoid", temperature=0.5)
+    assert sharper[1] > sig[1] and sharper[3] < sig[3]
+    shifted = compute_weights(z, mode="sigmoid", center=-2.0)
+    assert shifted[1] == pytest.approx(0.5)
+
+    thr = {b: -3.0 for b in N_BIN_LABELS}
+    hard = compute_weights(z, ["1"] * 5, mode="hard", thresholds=thr, w_min=0.0)
     assert hard[:4].tolist() == [1.0, 0.0, 0.0, 0.0] and np.isnan(hard[4])
-    zero_temp = compute_weights(z, n_bin, cutoffs, medians, mode="soft", temperature=0.0)
-    assert zero_temp[:4].tolist() == hard[:4].tolist()
+    with pytest.raises(ValueError):
+        compute_weights(z, mode="hard")
+    with pytest.raises(ValueError):
+        compute_weights(z, mode="sigmoid", temperature=0.0)
 
 
 def test_bin_quantiles():
@@ -243,7 +248,7 @@ def test_score_command_end_to_end(tmp_path):
         format="modkit", atlas=tmp_path / "atlas.feather",
         atlas_columns=["chrom_x", "start_genomic", "methylated_pooled", "total_pooled"],
         min_atlas_cov=1, tau=1.0, prior=["auto"], prior_min_cov=20, moments=None,
-        calibration=None, fit_calibration=False, weight_mode="soft", weight_quantile=0.1,
+        calibration=None, fit_calibration=False, weight_mode="sigmoid", weight_center=0.0,
         weight_thresholds=None, weight_temperature=1.0, weight_min=0.0, chunksize=1000,
     )
     score_main(args)

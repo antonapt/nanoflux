@@ -104,7 +104,7 @@ nanoflux prepare -i "$input_file" -o "$output_directory" -c --read-weights "$sco
 nanoflux infer -i "$output_directory/methylation.bed" -o "$results_dir" -c
 ```
 
-Weights follow `w = w_min + (1 - w_min) * sigmoid((cutoff - z) / scale)` per CpG-count bin. `--weight-mode hard` gives 1 below the cutoff and `--weight-min` above. Cutoffs come from `--weight-quantile` of the sample's own z (default 0.05) or, preferably for a cohort, fixed per-bin values via `--weight-thresholds '1:-3,2:-3.8,3-4:-4.6,5-9:-5.8,10+:-8'` taken from the controls. `--weight-temperature` sets the softness (0 equals hard mode).
+The weight is a plain decreasing function of z with no data-derived cutoff: `w = w_min + (1 - w_min) * sigmoid((center - z) / temperature)`. With the defaults (`--weight-center 0`, `--weight-temperature 1`) a read that fits the atlas gets about 0.5, a read at z = -2 about 0.88 and at z = -4 about 0.98; a smaller temperature sharpens the contrast and `--weight-min` keeps atlas-like reads from vanishing. Only the ratio of weights between reads at the same site matters in the pileup. `--weight-mode hard` with `--weight-thresholds '1:-3,2:-3.8,3-4:-4.6,5-9:-5.8,10+:-8'` gives 1 below the per-bin threshold and `--weight-min` above.
 
 ## 🧪 Development
 
