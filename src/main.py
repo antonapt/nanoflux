@@ -235,9 +235,27 @@ def run():
     )
     score_parser.add_argument(
         "--weight-score",
-        choices=["z", "llr_per_call"],
+        choices=["z", "llr_per_call", "llr_tumor_per_call"],
         default="z",
-        help="Score the weight is built from: z (cross-entropy centred and scaled by what an atlas-like read would score, needs the caller moments) or llr_per_call (log-likelihood of the read under the atlas vs a flat model, per CpG; needs no moments). Default: z",
+        help="Score the weight is built from: z (cross-entropy centred and scaled by what an atlas-like read would score, needs the caller moments), llr_per_call (log-likelihood of the read under the atlas vs a flat model, per CpG; needs no moments) or llr_tumor_per_call (tumour model vs atlas, per CpG; needs --tumor-calibration). Default: z",
+    )
+    score_parser.add_argument(
+        "--tumor-calibration",
+        type=pathtype.Path(exists=True, readable=True),
+        default=None,
+        help="tumor_calibration.json from scripts/build_tumor_atlas.py: what a tumour read does at a site with a given atlas p. Enables the llr_tumor scores",
+    )
+    score_parser.add_argument(
+        "--tumor-atlas",
+        type=pathtype.Path(exists=True, readable=True),
+        default=None,
+        help="tumor_atlas.feather from scripts/build_tumor_atlas.py: pooled per-site tumour counts, used where they exist on top of --tumor-calibration",
+    )
+    score_parser.add_argument(
+        "--tumor-prior-strength",
+        type=float,
+        default=2.0,
+        help="Pseudo-reads behind the tumour calibration value when combining it with the per-site tumour counts (default: 2)",
     )
     score_parser.add_argument(
         "--calibration",

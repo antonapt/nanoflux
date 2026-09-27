@@ -58,13 +58,19 @@ def score_calls(
     model: SiteModel,
     *,
     p_alt: float = 0.5,
+    p_tumor: np.ndarray | None = None,
 ) -> pd.DataFrame:
-    """Per-read partial sums for one chunk of atlas-matched calls."""
+    """Per-read partial sums for one chunk of atlas-matched calls.
+
+    ``p_tumor`` (per call) adds ``llr_tumor``: log-likelihood of the read under
+    the tumour model minus under the control atlas.
+    """
     p, e_r, v_r = model.expected(m, n)
     p = np.clip(p, EPS, 1 - EPS)
     lp = _logit(p)
     r = np.clip(calls["r"].to_numpy(np.float64), EPS, 1 - EPS)
     L = _logit(r)
+    ll_control = np.logaddexp(np.log(p) + L, np.log1p(-p))
     per_call = pd.DataFrame(
         {
             "read_id": calls["read_id"].to_numpy(),
@@ -72,11 +78,15 @@ def score_calls(
             "obs": np.log1p(-p) + r * lp,
             "exp": np.log1p(-p) + e_r * lp,
             "var": v_r * lp**2,
-            "llr": np.logaddexp(np.log(p) + L, np.log1p(-p))
-            - np.logaddexp(np.log(p_alt) + L, np.log1p(-p_alt)),
+            "llr": ll_control - np.logaddexp(np.log(p_alt) + L, np.log1p(-p_alt)),
         }
     )
-    return per_call.groupby("read_id", sort=False).agg(**_AGG)
+    agg = dict(_AGG)
+    if p_tumor is not None:
+        pt = np.clip(np.asarray(p_tumor, dtype=np.float64), EPS, 1 - EPS)
+        per_call["llr_tumor"] = np.logaddexp(np.log(pt) + L, np.log1p(-pt)) - ll_control
+        agg["llr_tumor"] = ("llr_tumor", "sum")
+    return per_call.groupby("read_id", sort=False).agg(**agg)
 
 
 def finalize_reads(partials: list[pd.DataFrame]) -> pd.DataFrame:
@@ -89,4 +99,8 @@ def finalize_reads(partials: list[pd.DataFrame]) -> pd.DataFrame:
     reads["llr_per_call"] = reads["llr"] / reads["n_calls"]
     reads["n_bin"] = assign_bins(reads["n_cpg"].to_numpy())
     reads.index.name = "read_id"
-    return reads[["n_calls", "n_cpg", "n_bin", "z", "llr_per_call"]]
+    cols = ["n_calls", "n_cpg", "n_bin", "z", "llr_per_call"]
+    if "llr_tumor" in reads:
+        reads["llr_tumor_per_call"] = reads["llr_tumor"] / reads["n_calls"]
+        cols += ["llr_tumor", "llr_tumor_per_call"]
+    return reads[cols]

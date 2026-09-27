@@ -23,9 +23,12 @@ from src.utils.filehandling import prepare_location
 from src.utils.log import logger
 
 OUTPUT_COLUMNS = ["read_id", "n_calls", "n_cpg", "n_bin", "z", "llr_per_call", "weight"]
+TUMOR_COLUMNS = ["llr_tumor", "llr_tumor_per_call"]
 DEFAULT_MOMENTS = "csf_controls.json"
 # per score: (center, temperature) of the sigmoid weight when not given
-WEIGHT_DEFAULTS = {"z": (0.0, 1.0), "llr_per_call": (0.0, 0.25)}
+WEIGHT_DEFAULTS = {"z": (0.0, 1.0), "llr_per_call": (0.0, 0.25), "llr_tumor_per_call": (0.0, 0.1)}
+# scores where a HIGHER value means less like the control atlas (the weight rises with the score)
+HIGHER_IS_ABNORMAL = {"llr_tumor_per_call"}
 
 
 def parse_prior(values: list[str]) -> BetaPrior | None:
@@ -162,11 +165,24 @@ def main(args):
     model, model_info = build_site_model(args, atlas, input_file, output_dir, fmt=fmt,
                                          chunksize=chunksize, tau=tau)
 
+    tumor = None
+    if getattr(args, "tumor_calibration", None):
+        from src.scoring.tumor import TumorModel
+
+        t_atlas = Atlas.from_feather(args.tumor_atlas) if getattr(args, "tumor_atlas", None) else None
+        tumor = TumorModel(Calibration.load(args.tumor_calibration), t_atlas, strength=args.tumor_prior_strength)
+        model_info["tumor_model"] = {**tumor.describe(), "calibration": str(args.tumor_calibration),
+                                     "atlas": str(args.tumor_atlas) if args.tumor_atlas else None}
+        logger.info(f"Tumour model: {tumor.describe()}")
+    elif args.weight_score == "llr_tumor_per_call":
+        raise SystemExit("--weight-score llr_tumor_per_call needs --tumor-calibration (and optionally --tumor-atlas)")
+
     # ---- scoring ----
     partials, totals, seen = [], Counter(), set()
     for calls, m, n, count in iter_matched_calls(input_file, atlas, fmt=fmt, chunksize=chunksize,
                                                  tau=tau, totals=totals, reads_seen=seen):
-        partials.append(score_calls(calls, m, n, count, model))
+        p_tumor = tumor.p(m, n, calls["chrom"], calls["start"], calls["end"]) if tumor else None
+        partials.append(score_calls(calls, m, n, count, model, p_tumor=p_tumor))
     reads = finalize_reads(partials)
     logger.info(
         f"Read {totals['n_rows']:,} rows: {totals['n_non_primary']:,} non-primary and "
@@ -183,13 +199,20 @@ def main(args):
     thresholds = parse_thresholds(args.weight_thresholds) if args.weight_thresholds else None
     if args.weight_mode == "hard" and thresholds is None:
         raise SystemExit("--weight-mode hard needs --weight-thresholds")
-    reads["weight"] = compute_weights(reads[score].to_numpy(), reads["n_bin"], mode=args.weight_mode,
+    # compute_weights treats lower values as more abnormal; flip scores that run the other way
+    signed = reads[score].to_numpy()
+    if score in HIGHER_IS_ABNORMAL:
+        signed, center = -signed, -center
+    reads["weight"] = compute_weights(signed, reads["n_bin"], mode=args.weight_mode,
                                       center=center, temperature=temperature, w_min=args.weight_min,
                                       thresholds=thresholds)
+    if score in HIGHER_IS_ABNORMAL:
+        center = -center
 
     out = reads.reset_index()
     out["n_bin"] = out["n_bin"].astype(str)
-    pq.write_table(pa.Table.from_pandas(out[OUTPUT_COLUMNS], preserve_index=False),
+    columns = OUTPUT_COLUMNS + [c for c in TUMOR_COLUMNS if c in out.columns]
+    pq.write_table(pa.Table.from_pandas(out[columns], preserve_index=False),
                    out_scores, compression="zstd")
 
     bins = summarize_bins(reads, score)
@@ -203,8 +226,9 @@ def main(args):
     }
     out_summary.write_text(json.dumps(summary, indent=2, default=str))
 
-    logger.info(f"Weight = sigmoid(({center} - {score}) / {temperature}); per CpG-count bin: "
-                f"reads, median, 5%, 1%, SD of {score}, mean weight")
+    formula = (f"sigmoid(({score} - {center}) / {temperature})" if score in HIGHER_IS_ABNORMAL
+               else f"sigmoid(({center} - {score}) / {temperature})")
+    logger.info(f"Weight = {formula}; per CpG-count bin: reads, median, 5%, 1%, SD of {score}, mean weight")
     for row in bins:
         logger.info(f"  {row['n_bin']:>4}: {row['n_reads']:>9,}  median {row['median_score']:5.2f}  "
                     f"q05 {row['score_q05']:6.2f}  q01 {row['score_q01']:6.2f}  sd {row['score_sd']:4.2f}  "

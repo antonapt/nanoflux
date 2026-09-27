@@ -199,6 +199,44 @@ def test_parse_prior():
             parse_prior(bad)
 
 
+# ------------------------------------------------------------------ tumour model
+def test_tumor_model_combines_calibration_and_counts():
+    from src.scoring.tumor import TumorModel
+
+    calib = Calibration(min_calls=1)
+    # tumour reads at control sites with m=9 of n=10 are methylated half of the time
+    calib.add(np.full(100, 9), np.full(100, 10), np.r_[np.full(50, 0.9), np.full(50, 0.1)])
+    t_atlas = Atlas(np.array(["chr1", "chr1"]), [100, 200], [0, 4], [4, 4])
+    m_c, n_c = np.array([9, 9, 9]), np.array([10, 10, 10])
+    chrom, pos = np.array(["chr1", "chr1", "chr1"]), np.array([100, 200, 300])
+
+    dense = TumorModel(calib).p(m_c, n_c, chrom, pos, pos)
+    assert dense.tolist() == pytest.approx([0.5, 0.5, 0.5])
+    both = TumorModel(calib, t_atlas, strength=2.0).p(m_c, n_c, chrom, pos, pos)
+    # (0 + 2*0.5)/(4+2), (4 + 2*0.5)/(4+2), and the uncovered site falls back to the dense value
+    assert both.tolist() == pytest.approx([1 / 6, 5 / 6, 0.5])
+
+
+def test_llr_tumor_separates_tumour_like_reads():
+    calls = pd.DataFrame({"read_id": ["a", "a", "b", "b"], "r": [0.95, 0.95, 0.05, 0.05]})
+    m, n = np.full(4, 9), np.full(4, 10)                     # control atlas: methylated
+    model = PriorModel(BetaPrior(1.0, 1.0), MomentStats_fit_stub())
+    p_tumor = np.full(4, 0.2)                                # tumour model: unmethylated here
+    reads = finalize_reads([score_calls(calls, m, n, np.ones(4, dtype=int), model, p_tumor=p_tumor)])
+    assert {"llr_tumor", "llr_tumor_per_call"} <= set(reads.columns)
+    assert reads.loc["b", "llr_tumor_per_call"] > 0 > reads.loc["a", "llr_tumor_per_call"]
+    assert reads.loc["b", "llr_tumor"] == pytest.approx(2 * reads.loc["b", "llr_tumor_per_call"])
+    # without a tumour model the columns are absent
+    plain = finalize_reads([score_calls(calls, m, n, np.ones(4, dtype=int), model)])
+    assert "llr_tumor" not in plain.columns
+
+
+def MomentStats_fit_stub():
+    from src.scoring.prior import Moments
+
+    return Moments(0.93, 0.006, 0.06, 0.002, 1000)
+
+
 # ------------------------------------------------------------------ weights
 def test_parse_thresholds():
     t = parse_thresholds("1:-3, 2:-3.8,3-4:-4.6,5-9:-5.8,10+:-8")
@@ -311,6 +349,29 @@ def test_score_command_end_to_end(tmp_path):
     assert out_llr.loc[flipped, "weight"].mean() > out_llr.loc[~flipped, "weight"].mean()
     s_llr = pd.read_json(tmp_path / "out_llr" / "score_summary.json", typ="series")
     assert s_llr["weight"]["temperature"] == 0.25
+
+    # tumour model: calibration fitted on the flipped reads, weights from llr_tumor_per_call
+    flipped_rows = [r for r in rows if r[0].startswith("read") and int(r[0][4:]) >= 270]
+    write_modkit(tmp_path / "tumour.tsv", flipped_rows)
+    atlas_obj = Atlas.from_feather(tmp_path / "atlas.feather")
+    t_calib = Calibration(min_calls=1)
+    for calls, _ in iter_modkit_calls(tmp_path / "tumour.tsv", chunksize=1000):
+        m_c, n_c, cnt = atlas_obj.lookup(calls["chrom"], calls["start"], calls["end"])
+        t_calib.add(m_c[cnt > 0], n_c[cnt > 0], calls["r"].to_numpy()[cnt > 0])
+    t_calib.save(tmp_path / "tumor_calibration.json")
+    args_t = Namespace(**{**vars(args), "output": tmp_path / "out_tumor", "weight_score": "llr_tumor_per_call",
+                          "tumor_calibration": tmp_path / "tumor_calibration.json", "tumor_atlas": None,
+                          "tumor_prior_strength": 2.0})
+    score_main(args_t)
+    out_t = pd.read_parquet(tmp_path / "out_tumor" / "read_scores.parquet")
+    assert {"llr_tumor", "llr_tumor_per_call"} <= set(out_t.columns)
+    ft = out_t["read_id"].str.slice(4).astype(int) >= 270
+    assert out_t.loc[ft, "llr_tumor_per_call"].median() > 0 > out_t.loc[~ft, "llr_tumor_per_call"].median()
+    assert out_t.loc[ft, "weight"].mean() > out_t.loc[~ft, "weight"].mean() + 0.3
+
+    with pytest.raises(SystemExit):
+        score_main(Namespace(**{**vars(args), "output": tmp_path / "out_bad",
+                                "weight_score": "llr_tumor_per_call"}))
 
     # an explicit prior and explicit thresholds
     args3 = Namespace(**{**vars(args), "output": tmp_path / "out3", "prior": ["1", "1"],
