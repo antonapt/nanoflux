@@ -108,7 +108,19 @@ nanoflux infer -i "$output_directory/methylation.bed" -o "$results_dir" -c
 
 The weight is a plain decreasing function of z with no data-derived cutoff: `w = w_min + (1 - w_min) * sigmoid((center - z) / temperature)`. With the defaults (`--weight-center 0`, `--weight-temperature 1`) a read that fits the atlas gets about 0.5, a read at z = -2 about 0.88 and at z = -4 about 0.98; a smaller temperature sharpens the contrast and `--weight-min` keeps atlas-like reads from vanishing. Only the ratio of weights between reads at the same site matters in the pileup. `--weight-mode hard` with `--weight-thresholds '1:-3,2:-3.8,3-4:-4.6,5-9:-5.8,10+:-8'` gives 1 below the per-bin threshold and `--weight-min` above.
 
-Two scripts run this for a whole cohort laid out as `<samples_dir>/<sample>/{aligned_to_13v2.bam,extracted.tsv}`: [scripts/score_samples.sh](scripts/score_samples.sh) only scores every sample (and documents each step of the scoring), [scripts/run_weighted_cohort.sh](scripts/run_weighted_cohort.sh) scores, runs the weighted prepare and infer, runs an unweighted baseline and writes a `summary.csv` with the top prediction per sample and run.
+#### Comparing approaches on a labelled cohort
+
+[scripts/run_cohort_analysis.sh](scripts/run_cohort_analysis.sh) runs the whole comparison from a sample sheet:
+
+```bash
+scripts/run_cohort_analysis.sh samples.tsv reference.feather work_dir 16
+```
+
+`samples.tsv` is tab-separated with a header and the columns `sample_id`, `category` (`control`, `tumor_low` or `tumor_high`), `true_label` (the class exactly as the classifier names it, e.g. `CONTR, INFLAM`), `bam` (chm13v2 BAM, input of prepare) and `calls` (modkit read table on hg38, input of score). The script prepares every sample with read extraction, scores it against the control atlas, builds a tumour model from the `tumor_high` samples (and one without each of them, so a sample is never scored against itself), scores against it, and calls [scripts/evaluate_approaches.py](scripts/evaluate_approaches.py). Steps whose output exists are skipped.
+
+The evaluation ranks reads by abnormality within each sample, so that every score (`z`, `llr_per_call`, `llr_tumor_per_call`) gets the same weight distribution and the scores are comparable. It then classifies each sample under four approaches: all reads at weight 1 (baseline), a weighted pileup, site weights (the probe feature scaled by the mean weight of its reads) and a read filter (only the most abnormal reads). `work_dir/results/approaches_table.txt` holds the tables, `approaches_summary.csv` the correct calls and the mean probability of the true label per group, `approaches_long.csv` one row per score, approach, variant and sample.
+
+Two simpler scripts run parts of this for a cohort laid out as `<samples_dir>/<sample>/{aligned_to_13v2.bam,extracted.tsv}`: [scripts/score_samples.sh](scripts/score_samples.sh) only scores every sample (and documents each step of the scoring), [scripts/run_weighted_cohort.sh](scripts/run_weighted_cohort.sh) scores, runs the weighted prepare and infer, runs an unweighted baseline and writes a `summary.csv` with the top prediction per sample and run.
 
 ## 🧪 Development
 
