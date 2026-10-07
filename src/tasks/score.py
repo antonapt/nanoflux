@@ -17,18 +17,21 @@ from src.scoring.atlas import Atlas
 from src.scoring.calibration import Calibration
 from src.scoring.calls import FORMATS
 from src.scoring.prior import BetaPrior, MomentStats, PriorModel, fit_beta_prior
-from src.scoring.scores import finalize_reads, score_calls
+from src.scoring.scores import (CONTROL_SCORES, TUMOR_LIKE_IS_HIGH, TUMOR_SCORES, canonical_score,
+                                finalize_reads, score_calls)
 from src.scoring.weights import N_BIN_LABELS, compute_weights, parse_thresholds
 from src.utils.filehandling import prepare_location
 from src.utils.log import logger
 
-OUTPUT_COLUMNS = ["read_id", "n_calls", "n_cpg", "n_bin", "z", "llr_per_call", "weight"]
-TUMOR_COLUMNS = ["llr_tumor", "llr_tumor_per_call"]
+OUTPUT_COLUMNS = ["read_id", "n_calls", "n_cpg", "n_bin"] + CONTROL_SCORES + ["weight"]
+TUMOR_COLUMNS = list(TUMOR_SCORES)
 DEFAULT_MOMENTS = "csf_controls.json"
 # per score: (center, temperature) of the sigmoid weight when not given
-WEIGHT_DEFAULTS = {"z": (0.0, 1.0), "llr_per_call": (0.0, 0.25), "llr_tumor_per_call": (0.0, 0.1)}
-# scores where a HIGHER value means less like the control atlas (the weight rises with the score)
-HIGHER_IS_ABNORMAL = {"llr_tumor_per_call"}
+WEIGHT_DEFAULTS = {"z_control": (0.0, 1.0), "llr_control_random_per_call": (0.0, 0.25),
+                   "z_tumor": (0.0, 1.0), "llr_tumor_random_per_call": (0.0, 0.25),
+                   "llr_tumor_control_per_call": (0.0, 0.1)}
+# scores where a HIGHER value means more tumour-like (the weight rises with the score)
+HIGHER_IS_ABNORMAL = TUMOR_LIKE_IS_HIGH
 
 
 def parse_prior(values: list[str]) -> BetaPrior | None:
@@ -128,6 +131,54 @@ def build_site_model(args, atlas: Atlas, input_file: Path, output_dir: Path, *, 
                    "moments": {**model.to_dict()["moments"], "source": moments_source}}
 
 
+def build_tumor_model(args, control_model, model_info: dict):
+    """Tumour site model from --tumor-atlas / --tumor-prior / --tumor-calibration, or None.
+
+    Returns ``(tumor_model, caller_moments)``; the moments are those of the control
+    site model and are needed for z_tumor (None when the control side uses a
+    calibration table, in which case z_tumor is NaN).
+    """
+    t_atlas_path = getattr(args, "tumor_atlas", None)
+    calib_path = getattr(args, "tumor_calibration", None)
+    prior_arg = getattr(args, "tumor_prior", None)
+    if not t_atlas_path and not calib_path:
+        return None, None
+
+    moments = getattr(control_model, "moments", None)
+    if moments is None:
+        logger.warning("Control side uses a calibration table: no caller moments, z_tumor will be NaN")
+
+    t_atlas = Atlas.from_feather(t_atlas_path) if t_atlas_path else None
+    if calib_path and prior_arg is None:
+        from src.scoring.tumor import TumorModel
+
+        tumor = TumorModel(Calibration.load(calib_path), t_atlas, strength=args.tumor_prior_strength)
+        info = {**tumor.describe(), "calibration": str(calib_path), "atlas": str(t_atlas_path) if t_atlas_path else None}
+    else:
+        from src.scoring.tumor import TumorPriorModel
+
+        if t_atlas is None:
+            raise SystemExit("--tumor-prior needs --tumor-atlas")
+        if calib_path:
+            logger.warning("Both --tumor-calibration and --tumor-prior given: using the Beta prior, ignoring the calibration table")
+        prior = parse_prior(prior_arg if prior_arg is not None else ["auto"])
+        if prior is None:
+            n_hi = int((t_atlas.total >= args.tumor_prior_min_cov).sum())
+            prior = fit_beta_prior(t_atlas.methylated, t_atlas.total, min_cov=args.tumor_prior_min_cov)
+            prior_info = {"source": f"fitted on tumour atlas sites with coverage >= {args.tumor_prior_min_cov}",
+                          "n_sites_at_min_cov": n_hi}
+            if n_hi < 1000:
+                logger.warning(f"Only {n_hi:,} tumour atlas sites have coverage >= {args.tumor_prior_min_cov}; "
+                               "the fit fell back to a lower coverage (see the log line above)")
+        else:
+            prior_info = {"source": "given"}
+        tumor = TumorPriorModel(prior, t_atlas, prior_info)
+        info = {**tumor.describe(), "atlas": str(t_atlas_path)}
+    model_info["tumor_model"] = info
+    logger.info(f"Tumour model: {info}", extra={"markup": False})
+    return tumor, moments
+
+
 def summarize_bins(reads: pd.DataFrame, score: str) -> list[dict]:
     rows = []
     for b in N_BIN_LABELS:
@@ -165,24 +216,18 @@ def main(args):
     model, model_info = build_site_model(args, atlas, input_file, output_dir, fmt=fmt,
                                          chunksize=chunksize, tau=tau)
 
-    tumor = None
-    if getattr(args, "tumor_calibration", None):
-        from src.scoring.tumor import TumorModel
-
-        t_atlas = Atlas.from_feather(args.tumor_atlas) if getattr(args, "tumor_atlas", None) else None
-        tumor = TumorModel(Calibration.load(args.tumor_calibration), t_atlas, strength=args.tumor_prior_strength)
-        model_info["tumor_model"] = {**tumor.describe(), "calibration": str(args.tumor_calibration),
-                                     "atlas": str(args.tumor_atlas) if args.tumor_atlas else None}
-        logger.info(f"Tumour model: {tumor.describe()}")
-    elif args.weight_score == "llr_tumor_per_call":
-        raise SystemExit("--weight-score llr_tumor_per_call needs --tumor-calibration (and optionally --tumor-atlas)")
+    tumor, tumor_moments = build_tumor_model(args, model, model_info)
+    score_name = canonical_score(args.weight_score)
+    if score_name in TUMOR_SCORES and tumor is None:
+        raise SystemExit(f"--weight-score {args.weight_score} needs --tumor-atlas (with --tumor-prior) "
+                         "or --tumor-calibration")
 
     # ---- scoring ----
     partials, totals, seen = [], Counter(), set()
     for calls, m, n, count in iter_matched_calls(input_file, atlas, fmt=fmt, chunksize=chunksize,
                                                  tau=tau, totals=totals, reads_seen=seen):
         p_tumor = tumor.p(m, n, calls["chrom"], calls["start"], calls["end"]) if tumor else None
-        partials.append(score_calls(calls, m, n, count, model, p_tumor=p_tumor))
+        partials.append(score_calls(calls, m, n, count, model, p_tumor=p_tumor, tumor_moments=tumor_moments))
     reads = finalize_reads(partials)
     logger.info(
         f"Read {totals['n_rows']:,} rows: {totals['n_non_primary']:,} non-primary and "
@@ -192,7 +237,7 @@ def main(args):
     logger.info(f"Scored {len(reads):,} of {len(seen):,} reads (the rest have no atlas CpG)")
 
     # ---- weights: a plain function of the chosen score, no data-derived cutoffs ----
-    score = args.weight_score
+    score = score_name
     default_center, default_temperature = WEIGHT_DEFAULTS[score]
     center = default_center if args.weight_center is None else args.weight_center
     temperature = default_temperature if args.weight_temperature is None else args.weight_temperature

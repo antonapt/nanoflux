@@ -16,17 +16,24 @@
 # Steps (each is skipped when its output exists, so the script can be re-run):
 #   1  <work>/<sample>/baseline/       nanoflux prepare --extract-reads   -> reads.tsv, methylation.bed
 #   2  <work>/<sample>/scores/         nanoflux score                     -> z, llr_per_call
-#   3  <work>/tumor_atlas/full/        tumour model from all tumor_high samples
-#      <work>/tumor_atlas/without_<s>/ the same without sample s, for every tumor_high sample
-#   4  <work>/<sample>/scores_tumor/   nanoflux score --tumor-...         -> llr_tumor_per_call
+#   3  <work>/tumor_atlas/full/        tumour atlas (+ Beta prior, + calibration) from all tumor_high samples
+#      <work>/tumor_atlas/without_<s>/ the same without sample s, for every tumor_high sample (unless BIASED=1)
+#   4  <work>/<sample>/scores_tumor/   nanoflux score --tumor-atlas ...   -> all five scores: z_control,
+#                                       llr_control_random_per_call, z_tumor, llr_tumor_random_per_call,
+#                                       llr_tumor_control_per_call
 #   5  <work>/results/                 scripts/evaluate_approaches.py     -> approaches_table.txt,
-#                                       approaches_summary.csv, approaches_long.csv
+#                                       approaches_summary.csv, approaches_long.csv, tumor_low_*.csv
 #
 # Environment overrides:
 #   PREPARE_ARGS            extra options for nanoflux prepare    (default "--skip-alignment")
 #   SCORE_ARGS              extra options for nanoflux score      (default none)
 #   MOMENTS_FROM_CONTROLS   1: refit the caller moments on the control samples of the sheet instead of
 #                           using the ones shipped with the package                       (default 0)
+#   TUMOR_MODEL             prior: Beta prior on the tumour atlas (--tumor-prior auto, deep atlas);
+#                           calibration: calibration-table model (sparse atlas)           (default prior)
+#   TUMOR_PRIOR_MIN_COV     coverage for the tumour prior fit, build and score            (default 20)
+#   BIASED                  1: no leave-one-out; every sample, including the pooled tumor_high ones, is
+#                           scored against tumor_atlas/full (in-pool, optimistic for tumor_high) (default 0)
 #   CLEANUP                 1: delete the sorted BAM copies prepare writes                (default 1)
 #   PYTHON                  python of the environment nanoflux is installed in            (default python)
 #
@@ -46,6 +53,9 @@ THREADS=${4:-8}
 PREPARE_ARGS=${PREPARE_ARGS:-"--skip-alignment"}
 SCORE_ARGS=${SCORE_ARGS:-}
 MOMENTS_FROM_CONTROLS=${MOMENTS_FROM_CONTROLS:-0}
+TUMOR_MODEL=${TUMOR_MODEL:-prior}
+TUMOR_PRIOR_MIN_COV=${TUMOR_PRIOR_MIN_COV:-20}
+BIASED=${BIASED:-0}
 CLEANUP=${CLEANUP:-1}
 PYTHON=${PYTHON:-python}
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -122,31 +132,45 @@ build_model() {  # <name> <index to leave out, or -1>
     for i in "${high_idx[@]}"; do [[ "$i" != "$leave" ]] && files+=("${calls[$i]}"); done
     echo "[START] tumour model $name from ${#files[@]} samples"
     rm -rf "$out"
-    "$PYTHON" "$HERE/build_tumor_atlas.py" --control-atlas "$ATLAS" --samples "${files[@]}" --out "$out"
+    "$PYTHON" "$HERE/build_tumor_atlas.py" --control-atlas "$ATLAS" --samples "${files[@]}" --out "$out" \
+        --prior-min-cov "$TUMOR_PRIOR_MIN_COV" --allow-shallow-prior
 }
 if [[ ${#high_idx[@]} -ge 2 ]]; then
     build_model full -1
-    for i in "${high_idx[@]}"; do build_model "without_${samples[$i]}" "$i"; done
+    if [[ "$BIASED" == 1 ]]; then
+        echo "[INFO]  BIASED=1: no leave-one-out models, pooled tumor_high samples are scored against full/"
+    else
+        for i in "${high_idx[@]}"; do build_model "without_${samples[$i]}" "$i"; done
+    fi
+    fit_ok=$("$PYTHON" -c "import json,sys; print(json.load(open(sys.argv[1])).get('prior',{}).get('fit_ok','unknown'))" \
+        "$WORK/tumor_atlas/full/build_info.json" 2>/dev/null || echo unknown)
+    if [[ "$fit_ok" == False ]]; then
+        echo "[WARN]  tumour prior of full/ was fitted below --prior-min-cov $TUMOR_PRIOR_MIN_COV (see tumor_atlas/full/tumor_prior.json)"
+    fi
 
-    # ---- 4: score against the tumour model ----
+    # ---- 4: score against the tumour model (writes all five scores) ----
     for i in "${!samples[@]}"; do
         s=${samples[$i]}; o="$WORK/$s"
         model=full
-        [[ "${categories[$i]}" == tumor_high ]] && model="without_$s"
+        [[ "$BIASED" != 1 && "${categories[$i]}" == tumor_high ]] && model="without_$s"
         if [[ -f "$o/scores_tumor/read_scores.parquet" ]]; then
             echo "[SKIP]  $s tumour score"
         else
             rm -rf "$o/scores_tumor"
-            echo "[START] $s tumour score (model $model)"
+            echo "[START] $s tumour score (model $model, $TUMOR_MODEL)"
+            tumor_args=(--tumor-atlas "$WORK/tumor_atlas/$model/tumor_atlas.feather")
+            if [[ "$TUMOR_MODEL" == calibration ]]; then
+                tumor_args+=(--tumor-calibration "$WORK/tumor_atlas/$model/tumor_calibration.json")
+            else
+                tumor_args+=(--tumor-prior auto --tumor-prior-min-cov "$TUMOR_PRIOR_MIN_COV")
+            fi
             # shellcheck disable=SC2086
-            nanoflux score -i "${calls[$i]}" --atlas "$ATLAS" -o "$o/scores_tumor" -c \
-                --tumor-calibration "$WORK/tumor_atlas/$model/tumor_calibration.json" \
-                --tumor-atlas "$WORK/tumor_atlas/$model/tumor_atlas.feather" \
-                --weight-score llr_tumor_per_call ${moments_arg[@]+"${moments_arg[@]}"} $SCORE_ARGS
+            nanoflux score -i "${calls[$i]}" --atlas "$ATLAS" -o "$o/scores_tumor" -c "${tumor_args[@]}" \
+                --weight-score llr_tumor_control_per_call ${moments_arg[@]+"${moments_arg[@]}"} $SCORE_ARGS
         fi
     done
 else
-    echo "[WARN]  fewer than 2 tumor_high samples: no tumour model, llr_tumor_per_call is skipped"
+    echo "[WARN]  fewer than 2 tumor_high samples: no tumour model, the tumour scores are skipped"
 fi
 
 # ---- 5: evaluation ----

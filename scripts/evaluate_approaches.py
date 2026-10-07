@@ -8,25 +8,32 @@ Sheet (tab-separated, one row per sample):
     category      control / tumor_low / tumor_high (only used for grouping the output)
     true_label    class name exactly as the classifier reports it, e.g. "CONTR, INFLAM", "GBM", "MB, G3 G4"
     reads_tsv     modkit read-calls table on the classifier's genome build (reads.tsv of `nanoflux prepare --extract-reads`)
-    scores        read_scores.parquet of `nanoflux score` (z, llr_per_call)
-    scores_tumor  optional: read_scores.parquet of a run with --tumor-calibration (llr_tumor_per_call)
+    scores        read_scores.parquet of `nanoflux score`; with --tumor-atlas it holds all five scores
+                  (z_control, llr_control_random_per_call, z_tumor, llr_tumor_random_per_call,
+                  llr_tumor_control_per_call); old column names z / llr_per_call / llr_tumor_per_call are accepted
+    scores_tumor  optional (old layout): a second parquet whose tumour columns are merged in
 
-For every score and sample, reads are ranked by abnormality within the sample (u in (0, 1], 1 = least
-like the control atlas). Using ranks gives every score exactly the same weight distribution, so scores
-can be compared with each other: the only difference is WHICH reads they put on top.
+For every score and sample, reads are ranked by tumour-likeness within the sample (u in (0, 1],
+1 = most tumour-like; control-reference scores are flipped so that "unlike control" ranks high).
+Using ranks gives every score exactly the same weight distribution, so scores can be compared with
+each other: the only difference is WHICH reads they put on top. It also settles the threshold
+direction once: with a control reference the methods remove what looks like control, with a tumour
+reference they keep what looks like tumour, and both are "keep high u".
 
 Approaches
     baseline          all reads, weight 1
-    weighted pileup   per probe: sum(w * methylated) / sum(w),  w = u^k
+    weighted pileup   per probe: sum(w * methylated) / sum(w),  w = u^k            k in RANK_POWERS
     site weights      probe feature (+1 / -1) scaled by the mean w of its reads, rescaled to mean 1
-    read filter       keep only the top q most abnormal reads, then an unweighted pileup
+    read filter       keep only the top q most tumour-like reads, then an unweighted pileup
+    probe filter      keep a probe only if max w >= tau (its most tumour-like read) or sum w >= tau, w = u
 
 Calls below the sample's pass threshold (10th percentile of call confidence, like modkit) are dropped.
-Reads without a score keep weight 1 in the pileup, are ignored for site weights and dropped by the filter.
+Reads without a score keep weight 1 in the pileup, are ignored for site weights and dropped by the filters.
 
 Outputs in --out:  approaches_long.csv (one row per score, approach, variant, sample),
                    approaches_summary.csv (correct calls and mean probability of the true label per group),
-                   approaches_table.txt (the printed tables)
+                   tumor_low_deltas.csv / tumor_low_summary.csv (paired change against baseline for the
+                   primary test category), approaches_table.txt (the printed tables)
 """
 from __future__ import annotations
 
@@ -41,12 +48,15 @@ import pandas as pd
 
 from src.scoring.calls import _NON_PRIMARY
 from src.scoring.pileup import FILTER_PERCENTILE, _SiteIndex, load_annotation
+from src.scoring.scores import ALL_SCORES, TUMOR_LIKE_IS_HIGH, rename_score_columns
 
-HIGHER_IS_ABNORMAL = {"llr_tumor_per_call"}
-SCORE_SOURCE = {"z": "scores", "llr_per_call": "scores", "llr_tumor_per_call": "scores_tumor"}
-RANK_POWERS = [1, 2, 4]
-KEEP_TOP = [0.5, 0.3, 0.1]
+RANK_POWERS = [1, 2, 4, 8]
+KEEP_TOP = [0.5, 0.3, 0.1, 0.05, 0.02]
+PROBE_MAX_W = [0.5, 0.7, 0.9]
+PROBE_SUM_W = [0.6, 1.0, 1.5]
+SITE_POWERS = [1, 2, 4]
 CONTROL = "CONTR, INFLAM"
+PRIMARY_CATEGORY = "tumor_low"
 
 
 def load_probe_calls(reads_tsv: Path, sites: _SiteIndex, probes: np.ndarray, chunksize: int) -> pd.DataFrame:
@@ -72,11 +82,29 @@ def load_probe_calls(reads_tsv: Path, sites: _SiteIndex, probes: np.ndarray, chu
     return calls[calls["prob"] >= threshold].drop(columns="prob").reset_index(drop=True)
 
 
-def abnormality_rank(scores: pd.DataFrame, column: str) -> pd.Series:
-    """Within-sample rank in (0, 1] over all scored reads; 1 = least like the control atlas."""
+def tumor_rank(scores: pd.DataFrame, column: str) -> pd.Series:
+    """Within-sample rank in (0, 1] over all scored reads; 1 = most tumour-like.
+
+    Control-reference scores (z_control, llr_control_random_per_call) are low when a
+    read does not look like control, so they are flipped; tumour-reference scores are
+    high when a read looks like tumour. After ranking, the direction question is settled
+    once for every enrichment method.
+    """
     s = scores.set_index("read_id")[column].dropna()
-    a = s if column in HIGHER_IS_ABNORMAL else -s
+    a = s if column in TUMOR_LIKE_IS_HIGH else -s
     return a.rank(method="average") / len(a)
+
+
+def load_scores(row) -> pd.DataFrame:
+    """Read score table(s) of one sample; merges an optional scores_tumor table (old layout)."""
+    table = rename_score_columns(pd.read_parquet(row.scores))
+    extra = getattr(row, "scores_tumor", "")
+    if extra:
+        t2 = rename_score_columns(pd.read_parquet(extra))
+        new = [c for c in t2.columns if c in ALL_SCORES and c not in table.columns]
+        if new:
+            table = table.merge(t2[["read_id"] + new], on="read_id", how="outer")
+    return table
 
 
 def binarise(frac: pd.Series) -> pd.Series:
@@ -136,28 +164,41 @@ def main() -> None:
     for s in sheet.itertuples(index=False):
         calls = load_probe_calls(Path(s.reads_tsv), sites, probes, args.chunksize)
         state = binarise(calls.groupby("probe")["is_m"].mean())
+        n_probes = int(state.notna().sum())
         record(state, s, "-", "baseline", "all reads, weight 1")
-        for score, source in SCORE_SOURCE.items():
-            path = getattr(s, source)
-            if not path:
+        table = load_scores(s)
+        for score in ALL_SCORES:
+            if score not in table.columns or table[score].notna().sum() == 0:
                 continue
-            table = pd.read_parquet(path)
-            if score not in table.columns:
-                continue
-            u = abnormality_rank(table, score).reindex(calls["read_id"]).to_numpy()
+            u = tumor_rank(table, score).reindex(calls["read_id"]).to_numpy()
             scored = ~np.isnan(u)
-            for k in RANK_POWERS:
-                w = np.where(scored, np.nan_to_num(u) ** k, 1.0)
+            u0 = np.nan_to_num(u)
+            # weighted pileup and site weights: w = u^k
+            for k in sorted(set(RANK_POWERS) | set(SITE_POWERS)):
+                w = np.where(scored, u0 ** k, 1.0)
                 c = calls.assign(w=w, wm=w * calls["is_m"].to_numpy())
                 g = c.groupby("probe")
-                record(binarise(g["wm"].sum() / g["w"].sum()), s, score, "weighted pileup", f"w = u^{k}")
-                omega = c[scored].groupby("probe")["w"].mean().reindex(state.index)
-                omega = (omega / omega[state.notna()].mean()).fillna(1.0)
-                record(state * omega, s, score, "site weights", f"w = u^{k}")
+                if k in RANK_POWERS:
+                    record(binarise(g["wm"].sum() / g["w"].sum()), s, score, "weighted pileup", f"w = u^{k}")
+                if k in SITE_POWERS:
+                    omega = c[scored].groupby("probe")["w"].mean().reindex(state.index)
+                    omega = (omega / omega[state.notna()].mean()).fillna(1.0)
+                    record(state * omega, s, score, "site weights", f"w = u^{k}")
+            # read filter: keep the top q most tumour-like reads, unweighted pileup
             for q in KEEP_TOP:
-                keep = scored & (u > 1 - q)
+                keep = scored & (u0 > 1 - q)
                 record(binarise(calls[keep].groupby("probe")["is_m"].mean()), s, score, "read filter",
                        f"keep top {q:.0%}", {"calls_kept": round(float(keep.sum() / max(scored.sum(), 1)), 3)})
+            # probe filter: keep a probe if its most tumour-like read (max w) or its summed w is high enough
+            per_probe = calls[scored].assign(w=u0[scored]).groupby("probe")["w"].agg(["max", "sum"])
+            for tau in PROBE_MAX_W:
+                keep_probes = per_probe.index[per_probe["max"] >= tau]
+                record(state.reindex(keep_probes).dropna(), s, score, "probe filter", f"max w >= {tau}",
+                       {"probes_kept": round(float(len(keep_probes) / max(n_probes, 1)), 3)})
+            for tau in PROBE_SUM_W:
+                keep_probes = per_probe.index[per_probe["sum"] >= tau]
+                record(state.reindex(keep_probes).dropna(), s, score, "probe filter", f"sum w >= {tau}",
+                       {"probes_kept": round(float(len(keep_probes) / max(n_probes, 1)), 3)})
         print(f"[done] {s.sample_id}", flush=True)
 
     tab = pd.DataFrame(rows)
@@ -173,6 +214,28 @@ def main() -> None:
     summary = pd.concat([summary, acc_cat, by_cat.round(3)], axis=1)
     summary.to_csv(args.out / "approaches_summary.csv")
 
+    # primary read-out: per-sample change against the baseline, paired, for the category of interest
+    base = tab[tab["approach"] == "baseline"].set_index("sample")
+    prim = tab[tab["category"] == PRIMARY_CATEGORY].copy()
+    prim["d_p_true_label"] = prim["p_true_label"].to_numpy() - base["p_true_label"].reindex(prim["sample"]).to_numpy()
+    prim["d_p_control"] = prim["p_control"].to_numpy() - base["p_control"].reindex(prim["sample"]).to_numpy()
+    prim["d_n_measured"] = prim["n_measured"].to_numpy() - base["n_measured"].reindex(prim["sample"]).to_numpy()
+    prim[["score", "approach", "variant", "sample", "true_label", "top_class", "correct", "p_true_label",
+          "d_p_true_label", "p_control", "d_p_control", "n_measured", "d_n_measured"]].to_csv(
+        args.out / f"{PRIMARY_CATEGORY}_deltas.csv", index=False)
+    prim["row"] = prim["score"] + " | " + prim["approach"] + " | " + prim["variant"]
+    deltas = prim[prim["approach"] != "baseline"].groupby("row").agg(
+        n=("d_p_true_label", "size"),
+        n_improved=("d_p_true_label", lambda d: int((d > 0).sum())),
+        n_worse=("d_p_true_label", lambda d: int((d < 0).sum())),
+        mean_d_p_true_label=("d_p_true_label", "mean"),
+        median_d_p_true_label=("d_p_true_label", "median"),
+        mean_d_p_control=("d_p_control", "mean"),
+        n_correct=("correct", "sum"),
+        min_n_measured=("n_measured", "min"),
+    ).reindex([r for r in row_order if r in set(prim.loc[prim["approach"] != "baseline", "row"])]).round(3)
+    deltas.to_csv(args.out / f"{PRIMARY_CATEGORY}_summary.csv")
+
     buf = io.StringIO()
     with redirect_stdout(buf):
         order = sheet["sample_id"].tolist()
@@ -181,6 +244,10 @@ def main() -> None:
         print(sheet.set_index("sample_id")[["category", "true_label"]].T.to_string())
         print("\nsummary (correct calls, mean probability of the true label per group):")
         print(summary.to_string())
+        if len(deltas):
+            print(f"\n{PRIMARY_CATEGORY}: change against baseline per variant (paired over samples; "
+                  "n_improved / n_worse = samples whose p(true label) rose / fell):")
+            print(deltas.to_string())
         print("\ntop class and probability (* = correct):")
         print(tab.pivot(index="row", columns="sample", values="cell").reindex(row_order)[order].to_string())
         print("\nprobability of the true label:")

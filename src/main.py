@@ -235,27 +235,41 @@ def run():
     )
     score_parser.add_argument(
         "--weight-score",
-        choices=["z", "llr_per_call", "llr_tumor_per_call"],
-        default="z",
-        help="Score the weight is built from: z (cross-entropy centred and scaled by what an atlas-like read would score, needs the caller moments), llr_per_call (log-likelihood of the read under the atlas vs a flat model, per CpG; needs no moments) or llr_tumor_per_call (tumour model vs atlas, per CpG; needs --tumor-calibration). Default: z",
-    )
-    score_parser.add_argument(
-        "--tumor-calibration",
-        type=pathtype.Path(exists=True, readable=True),
-        default=None,
-        help="tumor_calibration.json from scripts/build_tumor_atlas.py: what a tumour read does at a site with a given atlas p. Enables the llr_tumor scores",
+        choices=["z_control", "llr_control_random_per_call", "z_tumor", "llr_tumor_random_per_call",
+                 "llr_tumor_control_per_call", "z", "llr_per_call", "llr_tumor_per_call"],
+        default="z_control",
+        help="Score the weight is built from. Control reference (low = less like control): z_control (cross-entropy centred and scaled by what a control-like read would score, needs the caller moments), llr_control_random_per_call (control atlas vs a flat model, per CpG). Tumour reference (high = tumour-like; need --tumor-atlas): z_tumor, llr_tumor_random_per_call, llr_tumor_control_per_call (tumour model vs control atlas). z / llr_per_call / llr_tumor_per_call are accepted as old names. Default: z_control",
     )
     score_parser.add_argument(
         "--tumor-atlas",
         type=pathtype.Path(exists=True, readable=True),
         default=None,
-        help="tumor_atlas.feather from scripts/build_tumor_atlas.py: pooled per-site tumour counts, used where they exist on top of --tumor-calibration",
+        help="tumor_atlas.feather from scripts/build_tumor_atlas.py: pooled per-site tumour counts. Enables the three tumour scores; the tumour site model is a Beta prior (--tumor-prior) unless --tumor-calibration is given",
+    )
+    score_parser.add_argument(
+        "--tumor-prior",
+        nargs="+",
+        default=None,
+        metavar="ALPHA_BETA",
+        help="Beta prior for the tumour atlas, p_t = (m_t + alpha) / (n_t + alpha + beta), mirroring --prior: 'auto' fits alpha and beta on the well-covered tumour atlas sites, or pass two numbers. Default when --tumor-atlas is given without --tumor-calibration: auto",
+    )
+    score_parser.add_argument(
+        "--tumor-prior-min-cov",
+        type=int,
+        default=20,
+        help="Minimum pooled coverage of the tumour atlas sites used to fit the automatic tumour prior (default: 20; a warning is logged if fewer than 1000 sites qualify)",
+    )
+    score_parser.add_argument(
+        "--tumor-calibration",
+        type=pathtype.Path(exists=True, readable=True),
+        default=None,
+        help="tumor_calibration.json from scripts/build_tumor_atlas.py: calibration-table tumour model for sparse tumour atlases, combined with --tumor-atlas counts via --tumor-prior-strength. Ignored when --tumor-prior is given",
     )
     score_parser.add_argument(
         "--tumor-prior-strength",
         type=float,
         default=2.0,
-        help="Pseudo-reads behind the tumour calibration value when combining it with the per-site tumour counts (default: 2)",
+        help="Calibration variant only: pseudo-reads behind the tumour calibration value when combining it with the per-site tumour counts (default: 2)",
     )
     score_parser.add_argument(
         "--calibration",
