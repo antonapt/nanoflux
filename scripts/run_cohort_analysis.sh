@@ -86,6 +86,8 @@ for i in $(seq 1 "$n_samples"); do
     [[ -f "${bams[$((i-1))]}" ]] || { echo "[ERROR] BAM missing: ${bams[$((i-1))]}" >&2; exit 1; }
     [[ -f "${calls[$((i-1))]}" ]] || { echo "[ERROR] calls missing: ${calls[$((i-1))]}" >&2; exit 1; }
 done
+dups=$(printf '%s\n' "${samples[@]}" | sort | uniq -d | tr '\n' ' ')
+[[ -z "$dups" ]] || { echo "[ERROR] duplicate sample_id in sheet: $dups(each sample must appear once; duplicates share one work folder)" >&2; exit 1; }
 echo "[INFO] $n_samples samples: ${samples[*]}"
 
 # ---- optional: caller moments from the controls of this cohort ----

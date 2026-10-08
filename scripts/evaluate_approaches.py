@@ -146,6 +146,10 @@ def main() -> None:
             raise SystemExit(f"sheet needs a '{col}' column; found {list(sheet.columns)}")
     if "scores_tumor" not in sheet.columns:
         sheet["scores_tumor"] = ""
+    dup = sheet["sample_id"][sheet["sample_id"].duplicated()].unique().tolist()
+    if dup:
+        raise SystemExit(f"sheet has duplicate sample_id(s) {dup}: every sample must appear once "
+                         "(duplicates would also share one <work>/<sample_id>/ folder in run_cohort_analysis.sh)")
 
     anno = load_annotation(Path(str(files("data") / "features" / f"EPIC_{args.ref.strip('-as')}.bed")))
     sites, probes = _SiteIndex(anno), anno["probe"].to_numpy()
@@ -215,11 +219,11 @@ def main() -> None:
     summary.to_csv(args.out / "approaches_summary.csv")
 
     # primary read-out: per-sample change against the baseline, paired, for the category of interest
-    base = tab[tab["approach"] == "baseline"].set_index("sample")
+    base = (tab[tab["approach"] == "baseline"].drop_duplicates("sample")
+            .set_index("sample")[["p_true_label", "p_control", "n_measured"]])
     prim = tab[tab["category"] == PRIMARY_CATEGORY].copy()
-    prim["d_p_true_label"] = prim["p_true_label"].to_numpy() - base["p_true_label"].reindex(prim["sample"]).to_numpy()
-    prim["d_p_control"] = prim["p_control"].to_numpy() - base["p_control"].reindex(prim["sample"]).to_numpy()
-    prim["d_n_measured"] = prim["n_measured"].to_numpy() - base["n_measured"].reindex(prim["sample"]).to_numpy()
+    for col in ("p_true_label", "p_control", "n_measured"):
+        prim[f"d_{col}"] = prim[col].to_numpy() - prim["sample"].map(base[col]).to_numpy()
     prim[["score", "approach", "variant", "sample", "true_label", "top_class", "correct", "p_true_label",
           "d_p_true_label", "p_control", "d_p_control", "n_measured", "d_n_measured"]].to_csv(
         args.out / f"{PRIMARY_CATEGORY}_deltas.csv", index=False)
