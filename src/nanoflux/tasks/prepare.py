@@ -3,8 +3,8 @@ from importlib.resources import files
 from pathlib import Path
 from subprocess import PIPE, Popen, run
 
-from src.utils.filehandling import prepare_location, with_tmpfile
-from src.utils.log import logger
+from nanoflux.utils.filehandling import prepare_location, with_tmpfile
+from nanoflux.utils.log import logger
 
 
 @with_tmpfile
@@ -248,9 +248,14 @@ def main(args):
     input_file = args.input.resolve()
     output_dir = args.output.resolve()
 
-    reference = Path(str(files("data") / "refs" / f"{args.ref}.fa"))
+    reference = Path(str(files("nanoflux") / "data" / "refs" / f"{args.ref}.fa"))
     annotation = Path(
-        str(files("data") / "features" / f"EPIC_{args.ref.strip('-as')}.bed")
+        str(
+            files("nanoflux")
+            / "data"
+            / "features"
+            / f"EPIC_{args.ref.strip('-as')}.bed"
+        )
     )
 
     if not reference.exists():

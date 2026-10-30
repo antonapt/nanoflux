@@ -4,17 +4,19 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.model.ensemble_model import EnsembleWrapper
-from src.utils.data_utils import prepare_inference_data
-from src.utils.filehandling import prepare_location
-from src.utils.log import logger
+from nanoflux.model.ensemble_model import EnsembleWrapper
+from nanoflux.utils.data_utils import prepare_inference_data
+from nanoflux.utils.filehandling import prepare_location
+from nanoflux.utils.log import logger
 
 
 def load_features_list() -> list[str]:
     """Load the list of features to be used for inference.
     TODO: Not sure yet if this is the correct place to put this function.
     """
-    lsf_remaining_feats = files("data") / "features" / "features_min_sds_above_25.csv"
+    lsf_remaining_feats = (
+        files("nanoflux") / "data" / "features" / "features_min_sds_above_25.csv"
+    )
     if not lsf_remaining_feats.exists():  # type: ignore
         raise FileNotFoundError(
             f"Features list file not found at {lsf_remaining_feats}"

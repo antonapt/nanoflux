@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.utils.log import logger
+from nanoflux.utils.log import logger
 
 
 def load_pipeline_data(sample_path: Path) -> pd.DataFrame:

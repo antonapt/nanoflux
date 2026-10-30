@@ -11,11 +11,12 @@ wheels/
 .venv
 
 src/tests/data/calls.bam
-data/models/*
-data/refs/*
+src/nanoflux/data/models/*
+src/nanoflux/data/refs/*
 
 # macOS files
 .DS_Store
+
 # pixi environments
 .pixi/*
 !.pixi/config.toml

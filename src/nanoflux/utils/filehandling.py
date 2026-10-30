@@ -3,7 +3,7 @@ import tempfile
 from functools import partial, wraps
 from pathlib import Path
 
-from src.utils.log import logger
+from nanoflux.utils.log import logger
 
 
 def prepare_location(path: Path, create: bool = False, allow_overwrite=False) -> None:

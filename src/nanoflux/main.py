@@ -1,12 +1,11 @@
 import argparse
 import sys
-from importlib.resources import files
 
 import pathtype
 from rich_argparse import RichHelpFormatter
 
-from src.tasks import infer, prepare
-from src.utils.types import min_max_float
+from nanoflux.tasks import infer, prepare
+from nanoflux.utils.types import min_max_float
 
 VERSION = "0.0.1"
 

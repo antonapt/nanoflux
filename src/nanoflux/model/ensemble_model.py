@@ -1,20 +1,18 @@
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-from src.utils.log import logger
-
-from .linear_model import LiblinearWrapper
+from nanoflux.model.linear_model import LiblinearWrapper
+from nanoflux.utils.log import logger
 
 
 class EnsembleWrapper:
     def __init__(self, models_dir: Path | str, n_threads: int = -1):
         self.models_dir = Path(models_dir)
         self.n_threads = n_threads
-        self.models: List[LiblinearWrapper] = []
+        self.models: list[LiblinearWrapper] = []
         self.classes_: np.ndarray | None = None
         if not self.models_dir.exists():
             raise FileNotFoundError(
