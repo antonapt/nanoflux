@@ -8,11 +8,11 @@ dependencies = [
     "pathtype>=1.0.0",
     "rich>=14.2.0",
     "rich-argparse>=1.7.2",
-    "liblinear-official==2.50.0",
-    "joblib==1.5.2",
-    "numpy==2.2.6",
-    "pandas==2.3.2",
-    "scikit-learn==1.7.1",
+    "liblinear-official>=2.50.0",
+    "joblib>=1.5.2",
+    "numpy>=2.2.6",
+    "pandas>=2.3.2",
+    "scikit-learn>=1.7.1",
 ]
 
 [project.scripts]
@@ -31,6 +31,33 @@ data = [
     "models/*.features",
     "refs/*.fa"]
 
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+[tool.pixi.package.build]
+backend = { name = "pixi-build-python", version = "*" }
+
+[tool.pixi.package.host-dependencies]  
+hatchling = ">=1.26.3"
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+preview = ["pixi-build"]
+
+[tool.pixi.package]
+name = "nanoflux"
+version = "0.1.0"
+
+[tool.pixi.dependencies]
+rich = ">=14.2.0"
+rich-argparse = ">=1.7.2"
+joblib = ">=1.5.2"
+numpy = ">=2.2.6"
+pandas = ">=2.3.2"
+scikit-learn = ">=1.7.1"
+
+[tool.pixi.pypi-dependencies]
+nanoflux = { path = ".", editable = true }
+pathtype = "*"
+liblinear-official = "*"
+
+
+[tool.pixi.tasks]
