@@ -36,7 +36,7 @@ def main(args):
     lsf_remaining_feats = load_features_list()
     X = prepare_inference_data(input_file, lsf_remaining_feats)
     # Load ensemble model
-    ensemble_models_root_dir = files("data") / "models"
+    ensemble_models_root_dir = files("nanoflux") / "data" / "models"
     ensemble_model = EnsembleWrapper(
         models_dir=ensemble_models_root_dir,  # type: ignore
         n_threads=args.threads,

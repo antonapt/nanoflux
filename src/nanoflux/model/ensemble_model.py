@@ -5,6 +5,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 
 from nanoflux.model.linear_model import LiblinearWrapper
+from nanoflux.utils.download import download_models
 from nanoflux.utils.log import logger
 
 
@@ -35,7 +36,10 @@ class EnsembleWrapper:
         model_files = list(self.models_dir.glob("*.model"))
 
         if not model_files:
-            raise FileNotFoundError(f"No .model files found in {self.models_dir}")
+            try:
+                download_models()
+            except Exception:
+                raise FileNotFoundError(f"No .model files found in {self.models_dir}")
 
         logger.info(f"Loading {len(model_files)} models...")
 

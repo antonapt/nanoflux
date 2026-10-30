@@ -3,6 +3,7 @@ from importlib.resources import files
 from pathlib import Path
 from subprocess import PIPE, Popen, run
 
+from nanoflux.utils.download import download_genome
 from nanoflux.utils.filehandling import prepare_location, with_tmpfile
 from nanoflux.utils.log import logger
 
@@ -259,7 +260,10 @@ def main(args):
     )
 
     if not reference.exists():
-        raise FileNotFoundError(f"Reference file not found at {reference}")
+        try:
+            download_genome(f"{args.ref}.fa")
+        except Exception:
+            raise FileNotFoundError(f"Reference file not found at {reference}")
 
     logger.info("Running [blue bold]nanoflux prepare[/]")
 

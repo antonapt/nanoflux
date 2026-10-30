@@ -1,3 +1,4 @@
+from importlib import resources
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -9,7 +10,7 @@ dav_url = f"{base_url}/public.php/webdav/"
 password = ""
 
 
-def download():
+def download_models():
     target_dir = Path(__file__).parent / "models"
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -48,5 +49,22 @@ def download():
             f.write(r.content)
 
 
-if __name__ == "__main__":
-    download()
+def download_genome(name: str) -> None:
+
+    match name:
+        case "chm13v2.fa":
+            genome_url = "https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz"
+        case "hg38.fa":
+            genome_url = (
+                "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz"
+            )
+        case "hg38-as.fa":
+            genome_url = "https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz"
+
+    target_path = Path(resources.files("nanoflux") / "data" / "refs" / name)
+
+    with requests.get(genome_url, stream=True, allow_redirects=True) as response:
+        response.raise_for_status()
+
+        with open(target_path, "wb") as f:
+            f.writelines(response.iter_content(chunk_size=8192))
