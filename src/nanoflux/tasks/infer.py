@@ -3,6 +3,7 @@ from importlib.resources import files
 from pathlib import Path
 
 import pandas as pd
+from platformdirs import user_data_path
 
 from nanoflux.model.ensemble_model import EnsembleWrapper
 from nanoflux.utils.data_utils import prepare_inference_data
@@ -36,7 +37,7 @@ def main(args):
     lsf_remaining_feats = load_features_list()
     X = prepare_inference_data(input_file, lsf_remaining_feats)
     # Load ensemble model
-    ensemble_models_root_dir = files("nanoflux") / "data" / "models"
+    ensemble_models_root_dir = user_data_path("nanoflux") / "models"
     ensemble_model = EnsembleWrapper(
         models_dir=ensemble_models_root_dir,  # type: ignore
         n_threads=args.threads,

@@ -32,16 +32,22 @@ joblib = ">=1.5.2"
 numpy = ">=2.2.6"
 pandas = ">=2.3.2"
 scikit-learn = ">=1.7.1"
-samtools = ">=1.25,<2"
+samtools = ">=1.21,<2"
 bedtools = ">=2.31.1,<3"
-minimap2 = ">=2.31,<3"
-ont-modkit = ">=0.6.4,<0.7"
+minimap2 = ">=2.26,<3"
+ont-modkit = ">=0.2.5,<0.3"
 requests = ">=2.34.2,<3"
+platformdirs = ">=4.14.0,<5"
 
 [tool.pixi.pypi-dependencies]
 nanoflux = { path = ".", editable = true }
-pathtype = "*"
-liblinear-official = "*"
+pathtype = "==1.0.0"
+liblinear-official = "==2.50.0"
+
+[tool.pixi.feature.dev.dependencies]
+ipython = "*"
+ipykernel = ">=7.4.0,<8"
+pip = ">=26.2.2,<27"
 
 [tool.pixi.package.host-dependencies]  
 hatchling = ">=1.26.3"
@@ -53,9 +59,13 @@ joblib = ">=1.5.2"
 numpy = ">=2.2.6"
 pandas = ">=2.3.2"
 scikit-learn = ">=1.7.1"
-samtools = ">=1.25,<2"
+samtools = ">=1.21,<2"
 bedtools = ">=2.31.1,<3"
-minimap2 = ">=2.31,<3"
-ont-modkit = ">=0.6.4,<0.7"
+minimap2 = ">=2.26,<3"
+ont-modkit = ">=0.2.5,<0.3"
 requests = ">=2.34.2,<3"
+platformdirs = ">=4.14.0,<5"
 
+
+[tool.pixi.environments]
+dev = ["dev"]

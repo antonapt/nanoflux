@@ -1,5 +1,5 @@
-from argparse import ArgumentError, ArgumentTypeError
-from typing import Callable
+from argparse import ArgumentTypeError
+from collections.abc import Callable
 
 
 def min_max_float(min_: float, max_: float) -> Callable:

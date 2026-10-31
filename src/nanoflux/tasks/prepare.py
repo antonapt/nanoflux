@@ -3,6 +3,8 @@ from importlib.resources import files
 from pathlib import Path
 from subprocess import PIPE, Popen, run
 
+from platformdirs import user_data_path
+
 from nanoflux.utils.download import download_genome
 from nanoflux.utils.filehandling import prepare_location, with_tmpfile
 from nanoflux.utils.log import logger
@@ -249,7 +251,7 @@ def main(args):
     input_file = args.input.resolve()
     output_dir = args.output.resolve()
 
-    reference = Path(str(files("nanoflux") / "data" / "refs" / f"{args.ref}.fa"))
+    reference = user_data_path("nanoflux") / "refs" / f"{args.ref}.fa"
     annotation = Path(
         str(
             files("nanoflux")

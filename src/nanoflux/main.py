@@ -5,7 +5,7 @@ import pathtype
 from rich_argparse import RichHelpFormatter
 
 from nanoflux.tasks import infer, prepare
-from nanoflux.utils.types import min_max_float
+from nanoflux.utils.custom_types import min_max_float
 
 VERSION = "0.0.1"
 

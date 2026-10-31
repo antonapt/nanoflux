@@ -1,8 +1,11 @@
-from importlib import resources
-from pathlib import Path
+import gzip
+import shutil
 from xml.etree import ElementTree
 
 import requests
+from platformdirs import user_data_path
+from rich.live import Live
+from rich.spinner import Spinner
 
 share_token = "y5ZpkFFbDRirBog"
 base_url = "https://tubcloud.tu-berlin.de"
@@ -11,8 +14,7 @@ password = ""
 
 
 def download_models():
-    target_dir = Path(__file__).parent / "models"
-    target_dir.mkdir(parents=True, exist_ok=True)
+    target_dir = user_data_path("nanoflux") / "models"
 
     # Adding 'Depth: 2' allows us to see inside the subfolders
     response = requests.request(
@@ -50,7 +52,6 @@ def download_models():
 
 
 def download_genome(name: str) -> None:
-
     match name:
         case "chm13v2.fa":
             genome_url = "https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz"
@@ -59,12 +60,35 @@ def download_genome(name: str) -> None:
                 "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz"
             )
         case "hg38-as.fa":
-            genome_url = "https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz"
+            genome_url = "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.gz"
+        case _:
+            raise ValueError(f"Unknown genome name: {name}")
 
-    target_path = Path(resources.files("nanoflux") / "data" / "refs" / name)
+    target_dir = user_data_path("nanoflux") / "refs"
+    target_dir.mkdir(parents=True, exist_ok=True)
 
-    with requests.get(genome_url, stream=True, allow_redirects=True) as response:
-        response.raise_for_status()
+    target_path = target_dir / name
+    temporary_path = target_path.with_suffix(target_path.suffix + ".part")
 
-        with open(target_path, "wb") as f:
-            f.writelines(response.iter_content(chunk_size=8192))
+    spinner = Spinner(
+        "dots",
+        text=f"Downloading {name} to {target_path}...",
+    )
+
+    try:
+        with (
+            requests.get(genome_url, stream=True, allow_redirects=True) as response,
+            Live(spinner, refresh_per_second=10),
+        ):
+            response.raise_for_status()
+            response.raw.decode_content = False
+
+            with (
+                gzip.GzipFile(fileobj=response.raw) as decompressed,
+                temporary_path.open("wb") as output,
+            ):
+                shutil.copyfileobj(decompressed, output, length=1024 * 1024)
+
+        temporary_path.replace(target_path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
