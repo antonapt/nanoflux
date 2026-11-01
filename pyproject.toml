@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  "pathtype==1.0.0",
+  "liblinear-official==2.50.0",
+]
 
 [project.scripts]
 nanoflux = "nanoflux.main:run"
@@ -31,7 +34,7 @@ rich-argparse = ">=1.7.2"
 joblib = ">=1.5.2"
 numpy = ">=2.2.6"
 pandas = ">=2.3.2"
-scikit-learn = ">=1.7.1"
+scikit-learn = "==1.7.1"
 samtools = ">=1.21,<2"
 bedtools = ">=2.31.1,<3"
 minimap2 = ">=2.26,<3"
@@ -48,6 +51,7 @@ liblinear-official = "==2.50.0"
 ipython = "*"
 ipykernel = ">=7.4.0,<8"
 pip = ">=26.2.2,<27"
+pytest = ">=9.2.0,<10"
 
 [tool.pixi.package.host-dependencies]  
 hatchling = ">=1.26.3"
@@ -58,13 +62,14 @@ rich-argparse = ">=1.7.2"
 joblib = ">=1.5.2"
 numpy = ">=2.2.6"
 pandas = ">=2.3.2"
-scikit-learn = ">=1.7.1"
+scikit-learn = "==1.7.1"
 samtools = ">=1.21,<2"
 bedtools = ">=2.31.1,<3"
 minimap2 = ">=2.26,<3"
 ont-modkit = ">=0.2.5,<0.3"
 requests = ">=2.34.2,<3"
 platformdirs = ">=4.14.0,<5"
+
 
 
 [tool.pixi.environments]
