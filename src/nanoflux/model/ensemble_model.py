@@ -38,7 +38,7 @@ class EnsembleModel:
 
         logger.info(f"Loading {len(model_files)} models...")
 
-        self.models = Parallel(n_jobs=self.n_threads, backend="threading")(
+        self.models = Parallel(n_jobs=self.n_threads, backend="loky")(
             delayed(load_model)(p) for p in model_files
         )
 
@@ -61,6 +61,7 @@ class EnsembleModel:
 
     def _run_single_prediction(self, model, X, logits):
         """Helper function that lives outside the class or as a static method"""
+        X = X.reindex(model.feature_names_in_, axis=1)
         if logits:
             return model.predict_logits(X)
         return model.predict_proba(X)
@@ -69,7 +70,7 @@ class EnsembleModel:
         """
         Predicts the average probabilities or logits across all models in the ensemble.
         """
-        results = Parallel(n_jobs=self.n_threads, backend="threading")(
+        results = Parallel(n_jobs=self.n_threads, backend="loky")(
             delayed(self._run_single_prediction)(m, X, logits) for m in self.models
         )
         return np.mean(results, axis=0)

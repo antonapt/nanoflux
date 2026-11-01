@@ -101,8 +101,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026e-h5d301ff_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/urllib3-2.5.0-pyhd8ed1ab_0.conda
       - pypi: ./
-      - pypi: https://files.pythonhosted.org/packages/0c/9f/c1c143f572899da15217d3ccb64b470f5982e3cb70b2157bf2cdaa35e270/pathtype-1.0.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/a6/02/9e98604263aa0983ab60e056ebfe54d7e75b39c91191514f93b68431f502/liblinear_official-2.50.0.tar.gz
   dev:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -233,8 +231,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/urllib3-2.5.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/wheel-0.48.0-pyhd8ed1ab_0.conda
       - pypi: ./
-      - pypi: https://files.pythonhosted.org/packages/0c/9f/c1c143f572899da15217d3ccb64b470f5982e3cb70b2157bf2cdaa35e270/pathtype-1.0.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/a6/02/9e98604263aa0983ab60e056ebfe54d7e75b39c91191514f93b68431f502/liblinear_official-2.50.0.tar.gz
 packages:
 - conda: https://conda.anaconda.org/bioconda/linux-64/bedtools-2.31.1-hf5e1c6e_2.tar.bz2
   sha256: bb257aa49d4039bd24363d0d5d2948bfb4ae6de2245fe706b1152bfc2229da3f
@@ -2082,18 +2078,4 @@ packages:
   timestamp: 1786613220176
 - pypi: ./
   name: nanoflux
-  requires_dist:
-  - pathtype==1.0.0
-  - liblinear-official==2.50.0
   requires_python: '>=3.12'
-- pypi: https://files.pythonhosted.org/packages/0c/9f/c1c143f572899da15217d3ccb64b470f5982e3cb70b2157bf2cdaa35e270/pathtype-1.0.0-py3-none-any.whl
-  name: pathtype
-  version: 1.0.0
-  sha256: ae571cda022344966ed73512586bda5f126b48661a1d127a162a8d4674b9bdb9
-  requires_python: '>=3.7'
-- pypi: https://files.pythonhosted.org/packages/a6/02/9e98604263aa0983ab60e056ebfe54d7e75b39c91191514f93b68431f502/liblinear_official-2.50.0.tar.gz
-  name: liblinear-official
-  version: 2.50.0
-  sha256: 1a1b37eb61ca500205aecccde4913559487be567c61bd24eb876beee4728b2c1
-  requires_dist:
-  - scipy

@@ -1,13 +1,10 @@
 [project]
 name = "nanoflux"
-version = "0.1.0"
+version = "0.2.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-  "pathtype==1.0.0",
-  "liblinear-official==2.50.0",
-]
+dependencies = []
 
 [project.scripts]
 nanoflux = "nanoflux.main:run"
@@ -23,7 +20,7 @@ preview = ["pixi-build"]
 
 [tool.pixi.package]
 name = "nanoflux"
-version = "0.1.0"
+version = "0.2.0"
 
 [tool.pixi.package.build]
 backend = { name = "pixi-build-python", version = "*" }
@@ -42,10 +39,7 @@ ont-modkit = ">=0.2.5,<0.3"
 requests = ">=2.34.2,<3"
 platformdirs = ">=4.14.0,<5"
 
-[tool.pixi.pypi-dependencies]
-nanoflux = { path = ".", editable = true }
-pathtype = "==1.0.0"
-liblinear-official = "==2.50.0"
+
 
 [tool.pixi.feature.dev.dependencies]
 ipython = "*"

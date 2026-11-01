@@ -1,13 +1,17 @@
 import argparse
 import sys
 
-import pathtype
 from rich_argparse import RichHelpFormatter
 
 from nanoflux.tasks import infer, prepare
-from nanoflux.utils.custom_types import min_max_float
+from nanoflux.utils.custom_types import (
+    bam_sam_path_type,
+    bed_path_type,
+    min_max_float,
+    output_path_type,
+)
 
-VERSION = "0.0.1"
+VERSION = "0.2.0"
 
 
 def run():
@@ -23,7 +27,7 @@ def run():
     common_parser.add_argument(
         "-o",
         "--output",
-        type=pathtype.Path(writable_or_creatable=True),
+        type=output_path_type,
         required=True,
         help="Directory to save output files to. To create one upon nonexistence, pass -c/--create-dir",
     )
@@ -59,7 +63,7 @@ def run():
     prepare_parser.add_argument(
         "-i",
         "--input",
-        type=pathtype.Path(exists=True, name_matches_re=r"\.[sb]am$", readable=True),
+        type=bam_sam_path_type,
         required=True,
         help="Path to input SAM/BAM file",
     )
@@ -136,7 +140,7 @@ def run():
     infer_parser.add_argument(
         "-i",
         "--input",
-        type=pathtype.Path(exists=True, name_matches_re=r"\.bed$", readable=True),
+        type=bed_path_type,
         required=True,
         help="Path to input bed file",
     )

@@ -5,30 +5,35 @@ DNA methylation ensemble classifier for Oxford Nanopore sequencing data. This py
 
 ## 📋 Requirements
 
-- **Conda** installed on your computer: [Installation Guide](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html)
+- **Pixi**, a cross-platform package manager for the conda ecosystem. [Installation Guide](https://pixi.prefix.dev/latest/installation/)
 - A **basecaller** of your choice. We recommend ONT Dorado, see "Usage" for model recommendation. [Installation Guide](https://software-docs.nanoporetech.com/dorado/latest/)
 
 ## 🔧 Installation
-
-Clone the repository and run the installation script to set up the environment and download necessary dependencies:
-
-```console
-git clone https://github.com/antonapt/nanoflux.git
-cd nanoflux
-bash install_package.sh
+### Global:
+```bash
+pixi global install \
+    --channel conda-forge \
+    --channel bioconda \
+    --git https://github.com/antonapt/nanoflux
 ```
 
-This script will:
-- Create a Conda environment with Python 3.12
-- Install bioinformatics tools (samtools, bedtools, ont-modkit, minimap2)
-- Install Python dependencies
-- Download the CHM13 reference genome
-- Download pre-trained ensemble models
-
-After installation, activate the environment:
-
+Try it with:
+```bash
+nanoflux --help
+```
+### In a conda environment:
+```bash
+conda create -n nanoflux python=3.11 pixi -c conda-forge
+conda activate nanoflux
+pixi install \
+    --channel conda-forge \
+    --channel bioconda \
+    --git https://github.com/antonapt/nanoflux
+```
+Try it with:
 ```bash
 conda activate nanoflux
+nanoflux --help
 ```
 
 ## 🚀 Usage
@@ -44,6 +49,8 @@ dorado basecaller dna_r10.4.1_e8.2_400bps_hac@v4.3.0 "$pod5_path" --modified-bas
 ### 2. 📁 Prepare BAM Files
 
 Nanoflux will handle both SAM and BAM files obtained from base calling. As these are often already aligned to some reference sequence, Nanoflux will automatically re-align your files to the T2T CHM13v2.0 reference. If your data happens to be already aligned to this reference, you can pass the `--skip-alignment` flag to the `prepare` command in this step.
+
+⚠️ If you are using a reference for the first time, nanoflux will automatically download it. This can take a few minutes depending on your internet connection. 
 
 Run the NanoFlux file preparation pipeline on a SAM/BAM file:
 
@@ -72,19 +79,13 @@ Run the NanoFlux inference pipeline on your `methylation.bed` file (output from 
 nanoflux infer -i "$input_file" -o "$output_directory" -c
 ```
 
+⚠️ If you are using ```infer``` for the first time, nanoflux will automatically download the model data. This can take a few minutes depending on your internet connection. 
+
 The inference will:
 - Extract methylation features from the prepared `.bed` file (`input_file`)
 - Apply the ensemble classifier
 - Output predictions and probability scores to the specified `output_directory`
 - The `-c` flag indicates that output directories will be created if they do not exist
-
-## 🧪 Development
-
-Run tests to verify dependencies:
-
-```bash
-uv run pytest
-```
 
 ## 📫 Contact 
 If you have any questions, comments, or contribution ideas, don't hesitate to reach out.
