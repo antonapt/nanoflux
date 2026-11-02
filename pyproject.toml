@@ -15,7 +15,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nanoflux"]
-include = ["*.bed", "*.csv"]
+include = [
+  "src/nanoflux/data/**/*.bed",
+  "src/nanoflux/data/**/*.csv",
+]
 
 [tool.pixi.workspace]
 channels = ["conda-forge", "bioconda"]
