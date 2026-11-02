@@ -26,7 +26,7 @@ def minimap2_align(
         "-@",
         str(threads),
         "-T",
-        "MM,ML",
+        "MM,ML,MD",
         str(input_path),
     ]
     cmd_mm2 = [
@@ -37,6 +37,7 @@ def minimap2_align(
         str(output_path),
         "-ayx",
         "map-ont",
+        "--MD",
         "-t",
         str(threads),
     ]

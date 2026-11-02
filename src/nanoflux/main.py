@@ -11,7 +11,7 @@ from nanoflux.utils.custom_types import (
     output_path_type,
 )
 
-VERSION = "0.2.0"
+VERSION = "0.2.2"
 
 
 def run():

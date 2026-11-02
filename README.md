@@ -5,15 +5,22 @@ DNA methylation ensemble classifier for Oxford Nanopore sequencing data. This py
 
 ## 📋 Requirements
 
-- **Pixi**, a cross-platform package manager for the conda ecosystem. [Installation Guide](https://pixi.prefix.dev/latest/installation/)
-- A **basecaller** of your choice. We recommend ONT Dorado, see "Usage" for model recommendation. [Installation Guide](https://software-docs.nanoporetech.com/dorado/latest/)
+- **Pixi** (recommended), a cross-platform package manager for the conda ecosystem or a **Conda** distribution of your choice.
+
+    [Pixi Installation Guide](https://pixi.prefix.dev/latest/installation/)
+
+    [Miniforge Installation Guide](https://conda-forge.org/download/)
+
+- A **basecaller** of your choice. We recommend ONT Dorado, see "Usage" for model recommendation. 
+
+    [Doarao Installation Guide](https://software-docs.nanoporetech.com/dorado/latest/)
 
 ## 🔧 Installation
 ### Global:
 ```bash
 pixi global install \
-    --channel conda-forge \
-    --channel bioconda \
+    -c conda-forge \
+    -c bioconda \
     --git https://github.com/antonapt/nanoflux
 ```
 
@@ -26,8 +33,8 @@ nanoflux --help
 conda create -n nanoflux python=3.11 pixi -c conda-forge
 conda activate nanoflux
 pixi install \
-    --channel conda-forge \
-    --channel bioconda \
+    -c conda-forge \
+    -c bioconda \
     --git https://github.com/antonapt/nanoflux
 ```
 Try it with:
