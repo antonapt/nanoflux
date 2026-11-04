@@ -30,7 +30,7 @@ nanoflux --help
 ```
 ### In a conda environment:
 ```bash
-conda create -n nanoflux python=3.12 pixi -c conda-forge
+conda create -n nanoflux -c conda-forge python=3.12 pixi 
 conda activate nanoflux
 pixi install \
     -c conda-forge \
