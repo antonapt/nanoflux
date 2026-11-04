@@ -2,8 +2,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import requests
 
-from src.utils.log import logger
+from nanoflux.utils.log import logger
 
 
 def load_pipeline_data(sample_path: Path) -> pd.DataFrame:
@@ -12,7 +13,7 @@ def load_pipeline_data(sample_path: Path) -> pd.DataFrame:
     df = pd.read_csv(sample_path, sep="\t", header=None)
 
     df = df.iloc[:, [0, 1, 2, 9, 13]]
-    df.loc[:, 9] = df[9].apply(lambda x: x.split(" ")[1]).astype(float)
+    df[9] = df[9].apply(lambda x: x.split(" ")[1]).astype(float)
     df.columns = ["chr", "start", "end", "mod", "probe"]
     df.loc[:, "mod"] = df.loc[:, "mod"] * 0.01
     df.loc[df["mod"] >= 0.7, "mod"] = 1.0

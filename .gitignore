@@ -7,12 +7,18 @@ wheels/
 *.egg-info
 .pytest_cache
 
+# IDEs
+.vscode/
+
 # Virtual environments
 .venv
 
 src/tests/data/calls.bam
-data/models/*
-data/refs/*
+/data/
 
 # macOS files
 .DS_Store
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml

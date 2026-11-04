@@ -3,8 +3,11 @@ from importlib.resources import files
 from pathlib import Path
 from subprocess import PIPE, Popen, run
 
-from src.utils.filehandling import prepare_location, with_tmpfile
-from src.utils.log import logger
+from platformdirs import user_data_path
+
+from nanoflux.utils.download import download_genome
+from nanoflux.utils.filehandling import prepare_location, with_tmpfile
+from nanoflux.utils.log import logger
 
 
 @with_tmpfile
@@ -23,7 +26,7 @@ def minimap2_align(
         "-@",
         str(threads),
         "-T",
-        "MM,ML",
+        "MM,ML,MD",
         str(input_path),
     ]
     cmd_mm2 = [
@@ -34,6 +37,7 @@ def minimap2_align(
         str(output_path),
         "-ayx",
         "map-ont",
+        "--MD",
         "-t",
         str(threads),
     ]
@@ -248,13 +252,21 @@ def main(args):
     input_file = args.input.resolve()
     output_dir = args.output.resolve()
 
-    reference = Path(str(files("data") / "refs" / f"{args.ref}.fa"))
+    reference = user_data_path("nanoflux") / "refs" / f"{args.ref}.fa"
     annotation = Path(
-        str(files("data") / "features" / f"EPIC_{args.ref.strip('-as')}.bed")
+        str(
+            files("nanoflux")
+            / "data"
+            / "features"
+            / f"EPIC_{args.ref.strip('-as')}.bed"
+        )
     )
 
     if not reference.exists():
-        raise FileNotFoundError(f"Reference file not found at {reference}")
+        try:
+            download_genome(f"{args.ref}.fa")
+        except Exception:
+            raise FileNotFoundError(f"Reference file not found at {reference}")
 
     logger.info("Running [blue bold]nanoflux prepare[/]")
 
